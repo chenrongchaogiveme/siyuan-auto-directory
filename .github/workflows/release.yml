@@ -1,0 +1,35 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Check version and repository URL
+        run: |
+          node -e "const p=require('./plugin.json'); const tag=process.env.GITHUB_REF_NAME.replace(/^v/,''); if(p.version!==tag){console.error('plugin.json version '+p.version+' does not match tag '+tag);process.exit(1)} if(/OWNER|your-github/.test(p.url)){console.error('plugin.json url is still a placeholder');process.exit(1)}"
+      - run: npm run build
+      - name: Create package.zip
+        run: |
+          mkdir -p release
+          cp index.js index.css plugin.json README.md README.zh-CN.md LICENSE icon.png preview.png release/
+          cd release
+          zip -r ../package.zip .
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: package.zip
+          generate_release_notes: true

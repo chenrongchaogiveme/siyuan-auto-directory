@@ -1,0 +1,7 @@
+node_modules/
+dist/
+package.zip
+.work/
+*.log
+.DS_Store
+Thumbs.db

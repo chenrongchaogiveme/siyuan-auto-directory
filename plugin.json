@@ -1,0 +1,36 @@
+{
+  "name": "siyuan-auto-directory",
+  "author": "chen",
+  "url": "https://github.com/chenrongchaogiveme/siyuan-auto-directory",
+  "version": "1.0.0",
+  "minAppVersion": "3.8.0",
+  "backends": [
+    "all"
+  ],
+  "frontends": [
+    "all"
+  ],
+  "displayName": {
+    "default": "Auto Directory",
+    "zh-CN": "自动目录"
+  },
+  "description": {
+    "default": "Shows a live child-document and referenced-document tree above every document without writing to the document.",
+    "zh-CN": "在当前文档上方显示真实子文档与逐篇引用目录，引用行内折叠展示，支持拖拽排序、移动确认和多选删除，不写入正文。"
+  },
+  "readme": {
+    "default": "README.md",
+    "zh-CN": "README.zh-CN.md"
+  },
+  "icon": "icon.png",
+  "preview": "preview.png",
+  "keywords": [
+    "目录",
+    "文档树",
+    "子文档",
+    "自动目录",
+    "directory",
+    "outline",
+    "toc"
+  ]
+}
