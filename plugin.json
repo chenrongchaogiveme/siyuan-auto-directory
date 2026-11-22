@@ -2,7 +2,7 @@
   "name": "siyuan-auto-directory",
   "author": "chen",
   "url": "https://github.com/chenrongchaogiveme/siyuan-auto-directory",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minAppVersion": "3.8.0",
   "backends": [
     "all"

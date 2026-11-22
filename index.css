@@ -739,6 +739,9 @@
   display: grid;
   gap: 16px;
   padding: 10px 24px 6px;
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .sad-settings__field {

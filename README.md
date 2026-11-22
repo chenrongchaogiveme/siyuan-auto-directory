@@ -106,6 +106,10 @@ The old "only show in empty documents" option has been removed.
 
 Newest version first.
 
+### 1.0.1
+
+- Fixed: the settings dialog no longer overflows short windows; the options area now scrolls.
+
 ### 1.0.0
 
 - First stable release.
