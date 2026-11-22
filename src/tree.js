@@ -37,6 +37,8 @@ export function createNode(row, overrides = {}) {
         references: [],
         order: null,
         external: false,
+        pinned: false,
+        tags: [],
         ...overrides,
     };
 }
@@ -92,6 +94,11 @@ export function buildTree(rows, rootId, rootHPath, rootPath = "", includeAll = f
 
 export function sortTree(node) {
     node.children.sort((left, right) => {
+        const leftPinned = left.pinned === true;
+        const rightPinned = right.pinned === true;
+        if (leftPinned !== rightPinned) {
+            return leftPinned ? -1 : 1;
+        }
         if (Number.isFinite(left.order) && Number.isFinite(right.order)) {
             return left.order - right.order;
         }
@@ -200,6 +207,46 @@ export function applyTreeOrder(tree, orderMap) {
     sortTree(tree);
 }
 
+export function applyPinnedNodes(tree, pinnedIds) {
+    const pinned = pinnedIds instanceof Set ? pinnedIds : new Set(pinnedIds || []);
+    tree.index.forEach((node) => {
+        node.pinned = pinned.has(node.id);
+    });
+    sortTree(tree);
+}
+
+export function parseDocumentTags(value) {
+    const tags = [];
+    text(value).split(/\s+/).forEach((token) => {
+        const match = token.match(/^#+(.+?)#*$/);
+        const tag = text(match && match[1]).trim();
+        if (tag && !tags.includes(tag)) {
+            tags.push(tag);
+        }
+    });
+    return tags;
+}
+
+export function applyDocumentTags(tree, rows) {
+    const tagsById = new Map();
+    (rows || []).forEach((row) => {
+        const id = text(row && row.root_id);
+        if (!id) {
+            return;
+        }
+        const list = tagsById.get(id) || [];
+        parseDocumentTags(row.tag).forEach((tag) => {
+            if (!list.includes(tag)) {
+                list.push(tag);
+            }
+        });
+        tagsById.set(id, list);
+    });
+    tree.index.forEach((node, id) => {
+        node.tags = tagsById.get(id) || [];
+    });
+}
+
 export function addExternalNode(tree, info, source = null) {
     if (tree.index.has(info.id)) {
         markReferenced(tree, [info.id], source);
@@ -294,6 +341,8 @@ export function signature(tree, context, config) {
             node.children.length,
             node.referenced ? 1 : 0,
             node.external ? 1 : 0,
+            node.pinned ? 1 : 0,
+            (node.tags || []).join("~"),
             (node.referenceSources || []).map((source) => [
                 source.id,
                 source.title,
@@ -318,6 +367,7 @@ export function signature(tree, context, config) {
         config.autoExpand,
         config.showChildCount,
         config.showReferencedDocs,
+        config.showDocumentTags,
         config.showCreatedTime,
         config.showUpdatedTime,
         parts.join("|"),

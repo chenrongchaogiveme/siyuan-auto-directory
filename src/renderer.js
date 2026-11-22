@@ -38,6 +38,19 @@ function referenceKey(kind, nodeId) {
     return `${kind}:${nodeId}`;
 }
 
+function renderTags(tags, config, variant = "inline") {
+    if (config.showDocumentTags === false || !tags.length) {
+        return "";
+    }
+    const visible = variant === "detail" ? tags : tags.slice(0, 3);
+    const hidden = tags.length - visible.length;
+    const title = tags.map((tag) => `#${tag}`).join(" ");
+    const classes = `siyuan-auto-directory__tags${variant === "detail" ? " siyuan-auto-directory__tags--detail" : ""}`;
+    return `<span class="${classes}" title="标签：${escapeHtml(title)}">${visible.map((tag) => `<span class="siyuan-auto-directory__tag">#${escapeHtml(tag)}</span>`).join("")}${hidden > 0 ? `<span class="siyuan-auto-directory__tag siyuan-auto-directory__tag--more" title="还有 ${hidden} 个标签">+${hidden}</span>` : ""}</span>`;
+}
+
+const PIN_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z"/></svg>';
+
 function renderReferenceLine(state, key, label, references) {
     if (!references.length) {
         return "";
@@ -110,6 +123,13 @@ function renderNode(node, depth, state, config) {
     const hasChildren = children.length > 0;
     const expanded = hasChildren && state.expanded.has(node.id);
     const selected = state.selection.has(node.id);
+    const pinned = node.pinned === true;
+    const tagList = Array.isArray(node.tags) ? node.tags : [];
+    const inlineTags = tagList.length === 1 ? renderTags(tagList, config) : "";
+    const detailTags = tagList.length > 1 ? renderTags(tagList, config, "detail") : "";
+    const pinButton = node.external
+        ? ""
+        : `<button class="siyuan-auto-directory__pin${pinned ? " is-active" : ""}" type="button" data-sad-pin="${escapeHtml(node.id)}" aria-pressed="${pinned}" title="${pinned ? "取消置顶" : "在当前层级置顶"}" aria-label="${pinned ? "取消置顶" : "在当前层级置顶"}：${escapeHtml(node.title)}">${PIN_ICON}</button>`;
     const count = config.showChildCount && hasChildren
         ? `<span class="siyuan-auto-directory__count" title="直接子文档数">${children.length}</span>`
         : "";
@@ -138,16 +158,21 @@ function renderNode(node, depth, state, config) {
         : `<span class="siyuan-auto-directory__toggle" aria-hidden="true"></span>`;
 
     return `<div class="siyuan-auto-directory__node" data-sad-node="${escapeHtml(node.id)}" data-sad-depth="${depth}">
-  <div class="siyuan-auto-directory__row${selected ? " is-selected" : ""}${node.external ? " is-external" : ""}" data-sad-row="${escapeHtml(node.id)}" draggable="${draggable}" data-sad-draggable="${draggable}"${draggable ? ' title="拖到行上/下缘同级排序，拖到行中间成为子文档"' : ""}>
+  <div class="siyuan-auto-directory__row${selected ? " is-selected" : ""}${node.external ? " is-external" : ""}${pinned ? " is-pinned" : ""}" data-sad-row="${escapeHtml(node.id)}" draggable="${draggable}" data-sad-draggable="${draggable}"${draggable ? ' title="拖到行上/下缘同级排序，拖到行中间成为子文档"' : ""}>
     <label class="siyuan-auto-directory__check" title="选择：${escapeHtml(node.title)}">
       <input type="checkbox" data-sad-select="${escapeHtml(node.id)}" ${selected ? "checked" : ""} aria-label="选择：${escapeHtml(node.title)}">
     </label>
     ${toggle}
     <div class="siyuan-auto-directory__row-main">
-      <button class="siyuan-auto-directory__name" type="button" data-sad-open="${escapeHtml(node.id)}" title="${escapeHtml(openTitle)}">${escapeHtml(node.title)}</button>
+      <div class="siyuan-auto-directory__row-main-title">
+        <button class="siyuan-auto-directory__name" type="button" data-sad-open="${escapeHtml(node.id)}" title="${escapeHtml(openTitle)}">${escapeHtml(node.title)}</button>
+        ${pinButton}
+      </div>
+      ${detailTags}
       ${showCreatedTime ? `<span class="siyuan-auto-directory__meta" title="${escapeHtml(timeDetail)}">${escapeHtml(createdText)}</span>` : ""}
       ${inlineReferences}
     </div>
+    ${inlineTags}
     ${showUpdatedTime ? `<span class="siyuan-auto-directory__time" title="最后修改时间：${escapeHtml(updatedTime)}">${escapeHtml(updatedText)}</span>` : ""}
     ${badge}
     ${count}
@@ -199,7 +224,7 @@ export function renderPanelHtml(tree, state, config, legacyIds = []) {
 ${renderNavigation(tree, state)}
 ${legacy}
 <div class="siyuan-auto-directory__tree">${renderRows(childNodes, 0, state, config, "__root__")}</div>
-<div class="siyuan-auto-directory__footer">来源：${sourceText} · 不写入正文 · 拖到行上/下缘同级排序，拖到行中间成为子文档</div>`;
+<div class="siyuan-auto-directory__footer">来源：${sourceText} · 不写入正文 · 点击图钉置顶 · 拖到行上/下缘同级排序，拖到行中间成为子文档</div>`;
 }
 
 export function markSelectionOnElement(element, selection, allIds = []) {

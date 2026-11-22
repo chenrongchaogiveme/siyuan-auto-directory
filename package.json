@@ -1,9 +1,9 @@
 {
   "name": "siyuan-auto-directory",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
-  "description": "Show a live child-document and referenced-document tree above the current SiYuan document.",
+  "description": "Show a live child-document and referenced-document tree above the current SiYuan document, with per-level pinning and document tags.",
   "license": "MIT",
   "author": "chen",
   "repository": {

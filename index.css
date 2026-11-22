@@ -299,6 +299,10 @@
   box-shadow: inset 2px 0 0 var(--sad-accent);
 }
 
+.siyuan-auto-directory__row.is-pinned {
+  background: color-mix(in srgb, var(--sad-accent) 4%, transparent);
+}
+
 .siyuan-auto-directory__row[draggable="true"] {
   cursor: grab;
 }
@@ -474,6 +478,24 @@
   padding: 4px 0;
 }
 
+.siyuan-auto-directory__row-main-title {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 2px;
+}
+
+.siyuan-auto-directory__row-main-title .siyuan-auto-directory__name {
+  flex: 0 1 auto;
+  width: auto;
+  max-width: 100%;
+}
+
+.siyuan-auto-directory__row-main-title .siyuan-auto-directory__pin {
+  width: 22px;
+  height: 22px;
+}
+
 .siyuan-auto-directory__meta {
   min-width: 0;
   overflow: hidden;
@@ -494,6 +516,52 @@
   line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.siyuan-auto-directory__tags {
+  flex: 0 1 auto;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 34%;
+  margin-right: 20px;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.siyuan-auto-directory__tags--detail {
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  max-width: 100%;
+  margin: 0;
+  padding: 0 2px 2px;
+  overflow: visible;
+}
+
+.siyuan-auto-directory__tags--detail .siyuan-auto-directory__tag {
+  max-width: 180px;
+}
+
+.siyuan-auto-directory__tag {
+  flex: 0 1 auto;
+  max-width: 110px;
+  padding: 1px 7px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--sad-accent) 22%, var(--sad-border));
+  border-radius: 999px;
+  background: var(--sad-accent-soft);
+  color: var(--sad-accent);
+  font-size: 11px;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.siyuan-auto-directory__tag--more {
+  flex: 0 0 auto;
+  border-color: var(--sad-border);
+  background: transparent;
+  color: var(--sad-muted);
 }
 
 .siyuan-auto-directory__inline-refs {
@@ -632,6 +700,46 @@
 .siyuan-auto-directory__delete:focus-visible {
   background: rgba(217, 87, 87, .12);
   outline: none;
+}
+
+.siyuan-auto-directory__pin {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sad-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+
+.siyuan-auto-directory__pin svg {
+  width: 14px;
+  height: 14px;
+}
+
+.siyuan-auto-directory__row:hover .siyuan-auto-directory__pin,
+.siyuan-auto-directory__row:focus-within .siyuan-auto-directory__pin,
+.siyuan-auto-directory__pin.is-active,
+.siyuan-auto-directory__pin:focus-visible {
+  opacity: 1;
+}
+
+.siyuan-auto-directory__pin:hover,
+.siyuan-auto-directory__pin:focus-visible {
+  background: var(--sad-accent-soft);
+  color: var(--sad-accent);
+  outline: none;
+}
+
+.siyuan-auto-directory__pin.is-active {
+  color: var(--sad-accent);
 }
 
 .siyuan-auto-directory__open {
@@ -863,6 +971,9 @@
     transition: none;
   }
   .siyuan-auto-directory__delete {
+    transition: none;
+  }
+  .siyuan-auto-directory__pin {
     transition: none;
   }
 }

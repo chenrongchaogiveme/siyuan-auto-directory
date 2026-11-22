@@ -7,6 +7,7 @@ import {
     listDocTreeRange,
     queryDocRows,
     queryReferenceRows,
+    queryTagRows,
     queryTreeRows,
 } from "./api.js";
 import { DEFAULT_CONFIG, WS_COMMANDS } from "./constants.js";
@@ -22,6 +23,8 @@ import { appendNavigationOrigin } from "./navigation.js";
 import { DirectoryPanel } from "./panel.js";
 import {
     addReference,
+    applyDocumentTags,
+    applyPinnedNodes,
     applyTreeOrder,
     buildTree,
     collectParentKeys,
@@ -34,6 +37,7 @@ export class AutoDirectoryPlugin extends Plugin {
     constructor(options) {
         super(options);
         this.config = {...DEFAULT_CONFIG};
+        this.pins = new Set();
         this.panels = new Map();
         this.timers = new Map();
         this.busy = new Set();
@@ -51,6 +55,16 @@ export class AutoDirectoryPlugin extends Plugin {
         } catch (error) {
             console.warn("[siyuan-auto-directory] 读取配置失败，使用默认值", error);
             this.config = {...DEFAULT_CONFIG};
+        }
+
+        try {
+            const storedPins = await this.loadData("pins");
+            this.pins = new Set(Array.isArray(storedPins)
+                ? storedPins.map((id) => text(id)).filter(Boolean)
+                : []);
+        } catch (error) {
+            console.warn("[siyuan-auto-directory] 读取置顶状态失败，使用空列表", error);
+            this.pins = new Set();
         }
 
         this.eventBus.on("loaded-protyle-static", this.onProtyleEvent);
@@ -235,8 +249,12 @@ export class AutoDirectoryPlugin extends Plugin {
         }
         const tree = buildTree(rows, context.id, hpath, context.path, notebookRoot);
         await this.applyFileTreeOrder(context, tree);
+        applyPinnedNodes(tree, this.pins);
         if (this.config.showReferencedDocs !== false) {
             await this.mergeReferencedDocs(tree, protyle);
+        }
+        if (this.config.showDocumentTags !== false) {
+            await this.mergeDocumentTags(tree);
         }
         const legacyIds = await loadLegacyBlocks(context.id);
         return {tree, legacyIds};
@@ -272,6 +290,16 @@ export class AutoDirectoryPlugin extends Plugin {
         if (orderMap.size) {
             applyTreeOrder(tree, orderMap);
         }
+    }
+
+    async mergeDocumentTags(tree) {
+        let rows = [];
+        try {
+            rows = await queryTagRows(Array.from(tree.index.keys()));
+        } catch (error) {
+            console.warn("[siyuan-auto-directory] 查询文档标签失败", error);
+        }
+        applyDocumentTags(tree, rows);
     }
 
     async mergeReferencedDocs(tree, protyle) {
@@ -497,5 +525,39 @@ export class AutoDirectoryPlugin extends Plugin {
             panel.config = normalized;
         });
         return normalized;
+    }
+
+    applyPinState() {
+        this.panels.forEach((panel) => {
+            if (panel.element && panel.element.classList.contains("is-loading")) {
+                return;
+            }
+            applyPinnedNodes(panel.tree, this.pins);
+            panel.signature = "";
+            panel.render();
+        });
+    }
+
+    async togglePin(id) {
+        const key = text(id);
+        if (!key) {
+            return false;
+        }
+        const next = new Set(this.pins);
+        if (next.has(key)) {
+            next.delete(key);
+        } else {
+            next.add(key);
+        }
+        try {
+            await this.saveData("pins", Array.from(next));
+        } catch (error) {
+            console.error("[siyuan-auto-directory] 保存置顶状态失败", error);
+            showMessage("保存置顶状态失败：" + error.message);
+            return this.pins.has(key);
+        }
+        this.pins = next;
+        this.applyPinState();
+        return this.pins.has(key);
     }
 }

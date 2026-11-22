@@ -97,6 +97,29 @@ LIMIT 5000`,
     return rows;
 }
 
+export async function queryTagRows(ids) {
+    const unique = Array.from(new Set((ids || []).filter(Boolean)));
+    if (!unique.length) {
+        return [];
+    }
+    const rows = [];
+    for (let index = 0; index < unique.length; index += 200) {
+        const chunk = unique.slice(index, index + 200);
+        const quoted = chunk.map((id) => `'${escapeSql(id)}'`).join(",");
+        const result = await post("/api/query/sql", {
+            stmt: `SELECT root_id, tag FROM blocks
+WHERE root_id IN (${quoted}) AND tag IS NOT NULL AND tag <> ''
+GROUP BY root_id, tag
+ORDER BY root_id, MIN(id)
+LIMIT 5000`,
+        });
+        if (Array.isArray(result)) {
+            rows.push(...result);
+        }
+    }
+    return rows;
+}
+
 export async function listDocTree(notebook, path, silent = false) {
     const data = await post("/api/filetree/listDocTree", {notebook, path}, silent);
     return Array.isArray(data) ? data : (data && Array.isArray(data.tree) ? data.tree : []);

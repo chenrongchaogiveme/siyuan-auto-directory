@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
     addReference,
     addExternalNode,
+    applyDocumentTags,
+    applyPinnedNodes,
     applyTreeOrder,
     buildTree,
     canMoveNode,
@@ -11,6 +13,7 @@ import {
     hasDirectoryContent,
     isNodeUnder,
     markReferenced,
+    parseDocumentTags,
     signature,
 } from "../src/tree.js";
 
@@ -92,6 +95,34 @@ test("filetree order overrides the fallback title order", () => {
     assert.deepEqual(tree.children.map((node) => node.id), ["a", "b"]);
     applyTreeOrder(tree, new Map([["a", 1], ["b", 0]]));
     assert.deepEqual(tree.children.map((node) => node.id), ["b", "a"]);
+});
+
+test("pinned documents sort above later siblings and can be unpinned", () => {
+    const tree = buildTree(rows, "root", "/Projects");
+    applyPinnedNodes(tree, new Set(["b"]));
+    assert.deepEqual(tree.children.map((node) => node.id), ["b", "a"]);
+    assert.equal(tree.children[0].pinned, true);
+    applyPinnedNodes(tree, new Set());
+    assert.deepEqual(tree.children.map((node) => node.id), ["a", "b"]);
+    assert.equal(tree.children.every((node) => node.pinned === false), true);
+});
+
+test("document tags are merged from all blocks and deduplicated", () => {
+    const tree = buildTree(rows, "root", "/Projects");
+    applyDocumentTags(tree, [
+        {root_id: "a", tag: "#读书# #笔记#"},
+        {root_id: "a", tag: "#读书#"},
+        {root_id: "b", tag: "#工作#"},
+    ]);
+    assert.deepEqual(tree.index.get("a").tags, ["读书", "笔记"]);
+    assert.deepEqual(tree.index.get("b").tags, ["工作"]);
+    assert.deepEqual(tree.index.get("root").tags, []);
+});
+
+test("parseDocumentTags reads SiYuan tag tokens", () => {
+    assert.deepEqual(parseDocumentTags("#数控# #阅读#"), ["数控", "阅读"]);
+    assert.deepEqual(parseDocumentTags("#a# #a# #b#"), ["a", "b"]);
+    assert.deepEqual(parseDocumentTags(""), []);
 });
 
 test("signature changes when referenced state changes", () => {

@@ -32,6 +32,58 @@ test("renderer includes selection and legacy controls", () => {
     assert.match(html, /data-sad-select="a" checked/);
 });
 
+test("multiple document tags wrap below the title and can be hidden", () => {
+    const model = tree();
+    model.index.get("a").tags = ["读书笔记", "个人随笔", "工具", "摘录"];
+    model.index.get("a").updated = "20261117154000";
+    const state = {expanded: new Set(), selection: new Set(), page: new Map()};
+    const config = {maxDepth: 0, defaultExpandedDepth: 4, showChildCount: true, showReferencedDocs: true, showDocumentTags: true};
+    const html = renderPanelHtml(model, state, config);
+    assert.match(html, /siyuan-auto-directory__tags--detail/);
+    assert.match(html, /#读书笔记/);
+    assert.match(html, /#个人随笔/);
+    assert.match(html, /#工具/);
+    assert.match(html, />#摘录</);
+    assert.doesNotMatch(html, /\+1/);
+    assert.match(html, /title="标签：#读书笔记 #个人随笔 #工具 #摘录"/);
+    assert.ok(html.indexOf("siyuan-auto-directory__tags--detail") < html.indexOf("siyuan-auto-directory__time"));
+
+    const hidden = renderPanelHtml(model, state, {...config, showDocumentTags: false});
+    assert.doesNotMatch(hidden, /siyuan-auto-directory__tags/);
+});
+
+test("single document tag keeps the compact right-side layout", () => {
+    const model = tree();
+    model.index.get("a").tags = ["读书笔记"];
+    model.index.get("a").updated = "20261117154000";
+    const state = {expanded: new Set(), selection: new Set(), page: new Map()};
+    const config = {maxDepth: 0, defaultExpandedDepth: 4, showChildCount: true, showReferencedDocs: true, showDocumentTags: true};
+    const html = renderPanelHtml(model, state, config);
+    assert.match(html, /siyuan-auto-directory__tags/);
+    assert.doesNotMatch(html, /siyuan-auto-directory__tags--detail/);
+    assert.match(html, /#读书笔记/);
+    assert.ok(html.indexOf("siyuan-auto-directory__tags") < html.indexOf("siyuan-auto-directory__time"));
+});
+
+test("renderer exposes a pin toggle and marks pinned rows", () => {
+    const model = tree();
+    model.index.get("a").updated = "20261117154000";
+    const state = {expanded: new Set(), selection: new Set(), page: new Map()};
+    const config = {maxDepth: 0, defaultExpandedDepth: 4, showChildCount: true, showReferencedDocs: true};
+    const before = renderPanelHtml(model, state, config);
+    assert.match(before, /data-sad-pin="a"/);
+    assert.match(before, /data-sad-pin="a"[^>]*aria-pressed="false"/);
+    const pinIndex = before.indexOf('data-sad-pin="a"');
+    assert.ok(pinIndex > before.indexOf("siyuan-auto-directory__row-main-title"));
+    assert.ok(pinIndex < before.indexOf("siyuan-auto-directory__time"));
+    assert.ok(pinIndex < before.indexOf('data-sad-delete="a"'));
+    model.index.get("a").pinned = true;
+    const after = renderPanelHtml(model, state, config);
+    assert.match(after, /data-sad-pin="a"[^>]*aria-pressed="true"/);
+    assert.match(after, /siyuan-auto-directory__pin is-active/);
+    assert.match(after, /siyuan-auto-directory__row[^"]*is-pinned/);
+});
+
 test("renderer hides reference badges and reference count when disabled", () => {
     const model = tree();
     model.children[0].referenced = true;

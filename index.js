@@ -29,6 +29,7 @@ var init_constants = __esm({
       autoExpand: true,
       showChildCount: true,
       showReferencedDocs: true,
+      showDocumentTags: true,
       showCreatedTime: false,
       showUpdatedTime: true,
       confirmMove: true
@@ -67,6 +68,7 @@ function normalizeConfig(input) {
     autoExpand: source.autoExpand !== false,
     showChildCount: source.showChildCount !== false,
     showReferencedDocs: source.showReferencedDocs !== false,
+    showDocumentTags: source.showDocumentTags !== false,
     showCreatedTime: source.showCreatedTime === true,
     showUpdatedTime: source.showUpdatedTime !== false,
     confirmMove: source.confirmMove !== false
@@ -133,6 +135,13 @@ function openSettingsDialog(config, saveConfig, reloadPanels) {
   </label>
   <label class="sad-settings__toggle">
     <span class="sad-settings__toggle-text">
+      <span class="sad-settings__label">\u663E\u793A\u6587\u6863\u6807\u7B7E</span>
+      <span class="sad-settings__hint">\u5728\u76EE\u5F55\u884C\u5C55\u793A\u6587\u6863\u5185\u4F7F\u7528\u7684 #\u6807\u7B7E#\uFF1B\u5355\u6807\u7B7E\u9760\u53F3\u663E\u793A\uFF0C\u591A\u4E2A\u6807\u7B7E\u5728\u6807\u9898\u4E0B\u65B9\u5DE6\u4FA7\u6362\u884C\u5C55\u793A\u3002</span>
+    </span>
+    <input id="sad-show-tags" type="checkbox" class="b3-switch" ${config.showDocumentTags !== false ? "checked" : ""}>
+  </label>
+  <label class="sad-settings__toggle">
+    <span class="sad-settings__toggle-text">
       <span class="sad-settings__label">\u79FB\u52A8\u524D\u786E\u8BA4</span>
       <span class="sad-settings__hint">\u62D6\u62FD\u79FB\u52A8\u65F6\u5148\u786E\u8BA4\uFF1B\u53EF\u5728\u786E\u8BA4\u6846\u4E2D\u52FE\u9009\u201C\u4E0D\u518D\u63D0\u793A\u201D\uFF0C\u518D\u4ECE\u8FD9\u91CC\u91CD\u65B0\u5F00\u542F\u3002</span>
     </span>
@@ -140,6 +149,7 @@ function openSettingsDialog(config, saveConfig, reloadPanels) {
   </label>
   <div class="sad-settings__note">
     \u6709\u5B50\u6587\u6863\u6216\u6B63\u6587\u5F15\u7528\u6587\u6863\u65F6\u81EA\u52A8\u663E\u793A\uFF0C\u4E0D\u518D\u533A\u5206\u7A7A\u767D\u6587\u6863\u3002<br>
+    \u70B9\u51FB\u6807\u9898\u53F3\u4FA7\u7684\u56FE\u9489\u53EF\u7F6E\u9876\u5F53\u524D\u5C42\u7EA7\uFF0C\u7F6E\u9876\u72B6\u6001\u4F1A\u81EA\u52A8\u4FDD\u5B58\u3002<br>
     \u76EE\u5F55\u662F\u9605\u8BFB\u8F85\u52A9\u6D6E\u5C42\uFF0C\u4E0D\u4F1A\u5199\u5165\u6B63\u6587\uFF1B\u65E7\u7248\u76EE\u5F55\u5757\u53EF\u5728\u9762\u677F\u9876\u90E8\u6E05\u7406\u3002
   </div>
 </div>
@@ -199,6 +209,7 @@ function openSettingsDialog(config, saveConfig, reloadPanels) {
     const updatedTime = dialog.element.querySelector("#sad-show-updated-time");
     const createdTime = dialog.element.querySelector("#sad-show-created-time");
     const references = dialog.element.querySelector("#sad-show-references");
+    const tags = dialog.element.querySelector("#sad-show-tags");
     const moveConfirm = dialog.element.querySelector("#sad-confirm-move");
     const next = normalizeConfig({
       maxDepth: number("#sad-max-depth", config.maxDepth),
@@ -208,6 +219,7 @@ function openSettingsDialog(config, saveConfig, reloadPanels) {
       showUpdatedTime: updatedTime ? updatedTime.checked : config.showUpdatedTime,
       showCreatedTime: createdTime ? createdTime.checked : config.showCreatedTime,
       showReferencedDocs: references ? references.checked : config.showReferencedDocs,
+      showDocumentTags: tags ? tags.checked : config.showDocumentTags,
       confirmMove: moveConfirm ? moveConfirm.checked : config.confirmMove
     });
     try {
@@ -381,6 +393,28 @@ END
 WHERE r.root_id IN (${quoted})
 GROUP BY r.root_id, target_id
 ORDER BY r.root_id, target_hpath, target_title
+LIMIT 5000`
+    });
+    if (Array.isArray(result)) {
+      rows.push(...result);
+    }
+  }
+  return rows;
+}
+async function queryTagRows(ids) {
+  const unique = Array.from(new Set((ids || []).filter(Boolean)));
+  if (!unique.length) {
+    return [];
+  }
+  const rows = [];
+  for (let index = 0; index < unique.length; index += 200) {
+    const chunk = unique.slice(index, index + 200);
+    const quoted = chunk.map((id) => `'${escapeSql2(id)}'`).join(",");
+    const result = await post("/api/query/sql", {
+      stmt: `SELECT root_id, tag FROM blocks
+WHERE root_id IN (${quoted}) AND tag IS NOT NULL AND tag <> ''
+GROUP BY root_id, tag
+ORDER BY root_id, MIN(id)
 LIMIT 5000`
     });
     if (Array.isArray(result)) {
@@ -713,6 +747,8 @@ function createNode(row, overrides = {}) {
     references: [],
     order: null,
     external: false,
+    pinned: false,
+    tags: [],
     ...overrides
   };
 }
@@ -761,6 +797,11 @@ function buildTree(rows, rootId, rootHPath, rootPath = "", includeAll = false) {
 }
 function sortTree(node) {
   node.children.sort((left, right) => {
+    const leftPinned = left.pinned === true;
+    const rightPinned = right.pinned === true;
+    if (leftPinned !== rightPinned) {
+      return leftPinned ? -1 : 1;
+    }
     if (Number.isFinite(left.order) && Number.isFinite(right.order)) {
       return left.order - right.order;
     }
@@ -863,6 +904,43 @@ function applyTreeOrder(tree, orderMap) {
   });
   sortTree(tree);
 }
+function applyPinnedNodes(tree, pinnedIds) {
+  const pinned = pinnedIds instanceof Set ? pinnedIds : new Set(pinnedIds || []);
+  tree.index.forEach((node) => {
+    node.pinned = pinned.has(node.id);
+  });
+  sortTree(tree);
+}
+function parseDocumentTags(value) {
+  const tags = [];
+  text(value).split(/\s+/).forEach((token) => {
+    const match = token.match(/^#+(.+?)#*$/);
+    const tag = text(match && match[1]).trim();
+    if (tag && !tags.includes(tag)) {
+      tags.push(tag);
+    }
+  });
+  return tags;
+}
+function applyDocumentTags(tree, rows) {
+  const tagsById = /* @__PURE__ */ new Map();
+  (rows || []).forEach((row) => {
+    const id = text(row && row.root_id);
+    if (!id) {
+      return;
+    }
+    const list = tagsById.get(id) || [];
+    parseDocumentTags(row.tag).forEach((tag) => {
+      if (!list.includes(tag)) {
+        list.push(tag);
+      }
+    });
+    tagsById.set(id, list);
+  });
+  tree.index.forEach((node, id) => {
+    node.tags = tagsById.get(id) || [];
+  });
+}
 function findNode(tree, id) {
   return tree && tree.index ? tree.index.get(text(id)) : null;
 }
@@ -929,6 +1007,8 @@ function signature(tree, context, config) {
       node.children.length,
       node.referenced ? 1 : 0,
       node.external ? 1 : 0,
+      node.pinned ? 1 : 0,
+      (node.tags || []).join("~"),
       (node.referenceSources || []).map((source) => [
         source.id,
         source.title,
@@ -953,6 +1033,7 @@ function signature(tree, context, config) {
     config.autoExpand,
     config.showChildCount,
     config.showReferencedDocs,
+    config.showDocumentTags,
     config.showCreatedTime,
     config.showUpdatedTime,
     parts.join("|")
@@ -991,6 +1072,17 @@ function referenceOrigin(node) {
 function referenceKey(kind, nodeId) {
   return `${kind}:${nodeId}`;
 }
+function renderTags(tags, config, variant = "inline") {
+  if (config.showDocumentTags === false || !tags.length) {
+    return "";
+  }
+  const visible = variant === "detail" ? tags : tags.slice(0, 3);
+  const hidden = tags.length - visible.length;
+  const title = tags.map((tag) => `#${tag}`).join(" ");
+  const classes = `siyuan-auto-directory__tags${variant === "detail" ? " siyuan-auto-directory__tags--detail" : ""}`;
+  return `<span class="${classes}" title="\u6807\u7B7E\uFF1A${escapeHtml(title)}">${visible.map((tag) => `<span class="siyuan-auto-directory__tag">#${escapeHtml(tag)}</span>`).join("")}${hidden > 0 ? `<span class="siyuan-auto-directory__tag siyuan-auto-directory__tag--more" title="\u8FD8\u6709 ${hidden} \u4E2A\u6807\u7B7E">+${hidden}</span>` : ""}</span>`;
+}
+var PIN_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z"/></svg>';
 function renderReferenceLine(state, key, label, references) {
   if (!references.length) {
     return "";
@@ -1053,6 +1145,11 @@ function renderNode(node, depth, state, config) {
   const hasChildren = children.length > 0;
   const expanded = hasChildren && state.expanded.has(node.id);
   const selected = state.selection.has(node.id);
+  const pinned = node.pinned === true;
+  const tagList = Array.isArray(node.tags) ? node.tags : [];
+  const inlineTags = tagList.length === 1 ? renderTags(tagList, config) : "";
+  const detailTags = tagList.length > 1 ? renderTags(tagList, config, "detail") : "";
+  const pinButton = node.external ? "" : `<button class="siyuan-auto-directory__pin${pinned ? " is-active" : ""}" type="button" data-sad-pin="${escapeHtml(node.id)}" aria-pressed="${pinned}" title="${pinned ? "\u53D6\u6D88\u7F6E\u9876" : "\u5728\u5F53\u524D\u5C42\u7EA7\u7F6E\u9876"}" aria-label="${pinned ? "\u53D6\u6D88\u7F6E\u9876" : "\u5728\u5F53\u524D\u5C42\u7EA7\u7F6E\u9876"}\uFF1A${escapeHtml(node.title)}">${PIN_ICON}</button>`;
   const count = config.showChildCount && hasChildren ? `<span class="siyuan-auto-directory__count" title="\u76F4\u63A5\u5B50\u6587\u6863\u6570">${children.length}</span>` : "";
   const badge = showReferencedDocs && node.referenced ? node.external ? `<span class="siyuan-auto-directory__badge siyuan-auto-directory__badge--external" title="\u5F53\u524D\u6587\u6863\u5F15\u7528\u4E86\u6811\u5916\u6587\u6863">\u5916\u90E8\u5F15\u7528</span>` : `<span class="siyuan-auto-directory__badge" title="\u5176\u4ED6\u76EE\u5F55\u7B14\u8BB0\u5F15\u7528\u4E86\u8FD9\u4E2A\u6587\u6863">\u88AB\u5F15\u7528</span>` : "";
   const inlineReferences = references.length ? renderInlineReferences(node, state) : "";
@@ -1071,16 +1168,21 @@ ${timeDetail}` : ""}`;
       <svg aria-hidden="true"><use xlink:href="#iconRight"></use></svg>
     </button>` : `<span class="siyuan-auto-directory__toggle" aria-hidden="true"></span>`;
   return `<div class="siyuan-auto-directory__node" data-sad-node="${escapeHtml(node.id)}" data-sad-depth="${depth}">
-  <div class="siyuan-auto-directory__row${selected ? " is-selected" : ""}${node.external ? " is-external" : ""}" data-sad-row="${escapeHtml(node.id)}" draggable="${draggable}" data-sad-draggable="${draggable}"${draggable ? ' title="\u62D6\u5230\u884C\u4E0A/\u4E0B\u7F18\u540C\u7EA7\u6392\u5E8F\uFF0C\u62D6\u5230\u884C\u4E2D\u95F4\u6210\u4E3A\u5B50\u6587\u6863"' : ""}>
+  <div class="siyuan-auto-directory__row${selected ? " is-selected" : ""}${node.external ? " is-external" : ""}${pinned ? " is-pinned" : ""}" data-sad-row="${escapeHtml(node.id)}" draggable="${draggable}" data-sad-draggable="${draggable}"${draggable ? ' title="\u62D6\u5230\u884C\u4E0A/\u4E0B\u7F18\u540C\u7EA7\u6392\u5E8F\uFF0C\u62D6\u5230\u884C\u4E2D\u95F4\u6210\u4E3A\u5B50\u6587\u6863"' : ""}>
     <label class="siyuan-auto-directory__check" title="\u9009\u62E9\uFF1A${escapeHtml(node.title)}">
       <input type="checkbox" data-sad-select="${escapeHtml(node.id)}" ${selected ? "checked" : ""} aria-label="\u9009\u62E9\uFF1A${escapeHtml(node.title)}">
     </label>
     ${toggle}
     <div class="siyuan-auto-directory__row-main">
-      <button class="siyuan-auto-directory__name" type="button" data-sad-open="${escapeHtml(node.id)}" title="${escapeHtml(openTitle)}">${escapeHtml(node.title)}</button>
+      <div class="siyuan-auto-directory__row-main-title">
+        <button class="siyuan-auto-directory__name" type="button" data-sad-open="${escapeHtml(node.id)}" title="${escapeHtml(openTitle)}">${escapeHtml(node.title)}</button>
+        ${pinButton}
+      </div>
+      ${detailTags}
       ${showCreatedTime ? `<span class="siyuan-auto-directory__meta" title="${escapeHtml(timeDetail)}">${escapeHtml(createdText)}</span>` : ""}
       ${inlineReferences}
     </div>
+    ${inlineTags}
     ${showUpdatedTime ? `<span class="siyuan-auto-directory__time" title="\u6700\u540E\u4FEE\u6539\u65F6\u95F4\uFF1A${escapeHtml(updatedTime)}">${escapeHtml(updatedText)}</span>` : ""}
     ${badge}
     ${count}
@@ -1129,7 +1231,7 @@ function renderPanelHtml(tree, state, config, legacyIds = []) {
 ${renderNavigation(tree, state)}
 ${legacy}
 <div class="siyuan-auto-directory__tree">${renderRows(childNodes, 0, state, config, "__root__")}</div>
-<div class="siyuan-auto-directory__footer">\u6765\u6E90\uFF1A${sourceText} \xB7 \u4E0D\u5199\u5165\u6B63\u6587 \xB7 \u62D6\u5230\u884C\u4E0A/\u4E0B\u7F18\u540C\u7EA7\u6392\u5E8F\uFF0C\u62D6\u5230\u884C\u4E2D\u95F4\u6210\u4E3A\u5B50\u6587\u6863</div>`;
+<div class="siyuan-auto-directory__footer">\u6765\u6E90\uFF1A${sourceText} \xB7 \u4E0D\u5199\u5165\u6B63\u6587 \xB7 \u70B9\u51FB\u56FE\u9489\u7F6E\u9876 \xB7 \u62D6\u5230\u884C\u4E0A/\u4E0B\u7F18\u540C\u7EA7\u6392\u5E8F\uFF0C\u62D6\u5230\u884C\u4E2D\u95F4\u6210\u4E3A\u5B50\u6587\u6863</div>`;
 }
 function markSelectionOnElement(element, selection, allIds = []) {
   if (!element) {
@@ -1413,6 +1515,23 @@ var DirectoryPanel = class {
         await this.deleteSelected();
       } else if (name === "remove-legacy") {
         await this.removeLegacy();
+      }
+      return;
+    }
+    const pin = target.closest("[data-sad-pin]");
+    if (pin) {
+      event.preventDefault();
+      event.stopPropagation();
+      const id = pin.getAttribute("data-sad-pin");
+      if (id) {
+        pin.disabled = true;
+        try {
+          await this.plugin.togglePin(id);
+        } finally {
+          if (pin.isConnected) {
+            pin.disabled = false;
+          }
+        }
       }
       return;
     }
@@ -1764,6 +1883,7 @@ var AutoDirectoryPlugin = class extends import_siyuan5.Plugin {
   constructor(options) {
     super(options);
     this.config = { ...DEFAULT_CONFIG };
+    this.pins = /* @__PURE__ */ new Set();
     this.panels = /* @__PURE__ */ new Map();
     this.timers = /* @__PURE__ */ new Map();
     this.busy = /* @__PURE__ */ new Set();
@@ -1780,6 +1900,13 @@ var AutoDirectoryPlugin = class extends import_siyuan5.Plugin {
     } catch (error) {
       console.warn("[siyuan-auto-directory] \u8BFB\u53D6\u914D\u7F6E\u5931\u8D25\uFF0C\u4F7F\u7528\u9ED8\u8BA4\u503C", error);
       this.config = { ...DEFAULT_CONFIG };
+    }
+    try {
+      const storedPins = await this.loadData("pins");
+      this.pins = new Set(Array.isArray(storedPins) ? storedPins.map((id) => text(id)).filter(Boolean) : []);
+    } catch (error) {
+      console.warn("[siyuan-auto-directory] \u8BFB\u53D6\u7F6E\u9876\u72B6\u6001\u5931\u8D25\uFF0C\u4F7F\u7528\u7A7A\u5217\u8868", error);
+      this.pins = /* @__PURE__ */ new Set();
     }
     this.eventBus.on("loaded-protyle-static", this.onProtyleEvent);
     this.eventBus.on("switch-protyle", this.onProtyleEvent);
@@ -1952,8 +2079,12 @@ var AutoDirectoryPlugin = class extends import_siyuan5.Plugin {
     }
     const tree = buildTree(rows, context.id, hpath, context.path, notebookRoot);
     await this.applyFileTreeOrder(context, tree);
+    applyPinnedNodes(tree, this.pins);
     if (this.config.showReferencedDocs !== false) {
       await this.mergeReferencedDocs(tree, protyle);
+    }
+    if (this.config.showDocumentTags !== false) {
+      await this.mergeDocumentTags(tree);
     }
     const legacyIds = await loadLegacyBlocks(context.id);
     return { tree, legacyIds };
@@ -1986,6 +2117,15 @@ var AutoDirectoryPlugin = class extends import_siyuan5.Plugin {
     if (orderMap.size) {
       applyTreeOrder(tree, orderMap);
     }
+  }
+  async mergeDocumentTags(tree) {
+    let rows = [];
+    try {
+      rows = await queryTagRows(Array.from(tree.index.keys()));
+    } catch (error) {
+      console.warn("[siyuan-auto-directory] \u67E5\u8BE2\u6587\u6863\u6807\u7B7E\u5931\u8D25", error);
+    }
+    applyDocumentTags(tree, rows);
   }
   async mergeReferencedDocs(tree, protyle) {
     const sourceIds = Array.from(tree.index.keys());
@@ -2200,6 +2340,38 @@ var AutoDirectoryPlugin = class extends import_siyuan5.Plugin {
       panel.config = normalized;
     });
     return normalized;
+  }
+  applyPinState() {
+    this.panels.forEach((panel) => {
+      if (panel.element && panel.element.classList.contains("is-loading")) {
+        return;
+      }
+      applyPinnedNodes(panel.tree, this.pins);
+      panel.signature = "";
+      panel.render();
+    });
+  }
+  async togglePin(id) {
+    const key = text(id);
+    if (!key) {
+      return false;
+    }
+    const next = new Set(this.pins);
+    if (next.has(key)) {
+      next.delete(key);
+    } else {
+      next.add(key);
+    }
+    try {
+      await this.saveData("pins", Array.from(next));
+    } catch (error) {
+      console.error("[siyuan-auto-directory] \u4FDD\u5B58\u7F6E\u9876\u72B6\u6001\u5931\u8D25", error);
+      (0, import_siyuan5.showMessage)("\u4FDD\u5B58\u7F6E\u9876\u72B6\u6001\u5931\u8D25\uFF1A" + error.message);
+      return this.pins.has(key);
+    }
+    this.pins = next;
+    this.applyPinState();
+    return this.pins.has(key);
   }
 };
 

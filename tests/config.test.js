@@ -9,6 +9,7 @@ test("normalizeConfig keeps supported settings", () => {
         autoExpand: false,
         showChildCount: false,
         showReferencedDocs: false,
+        showDocumentTags: false,
         showCreatedTime: true,
         showUpdatedTime: false,
         confirmMove: false,
@@ -19,6 +20,7 @@ test("normalizeConfig keeps supported settings", () => {
         autoExpand: false,
         showChildCount: false,
         showReferencedDocs: false,
+        showDocumentTags: false,
         showCreatedTime: true,
         showUpdatedTime: false,
         confirmMove: false,
@@ -32,6 +34,7 @@ test("normalizeConfig clamps bad values", () => {
         autoExpand: 0,
         showChildCount: 0,
         showReferencedDocs: 0,
+        showDocumentTags: 0,
         showCreatedTime: 0,
         showUpdatedTime: 0,
         confirmMove: 0,
@@ -41,6 +44,7 @@ test("normalizeConfig clamps bad values", () => {
         autoExpand: true,
         showChildCount: true,
         showReferencedDocs: true,
+        showDocumentTags: true,
         showCreatedTime: false,
         showUpdatedTime: true,
         confirmMove: true,
@@ -56,4 +60,9 @@ test("normalizeConfig shows only the updated time by default", () => {
     const config = normalizeConfig({});
     assert.equal(config.showUpdatedTime, true);
     assert.equal(config.showCreatedTime, false);
+});
+
+test("normalizeConfig shows document tags by default", () => {
+    assert.equal(normalizeConfig({}).showDocumentTags, true);
+    assert.equal(normalizeConfig({showDocumentTags: false}).showDocumentTags, false);
 });

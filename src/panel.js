@@ -282,6 +282,23 @@ export class DirectoryPanel {
             }
             return;
         }
+        const pin = target.closest("[data-sad-pin]");
+        if (pin) {
+            event.preventDefault();
+            event.stopPropagation();
+            const id = pin.getAttribute("data-sad-pin");
+            if (id) {
+                pin.disabled = true;
+                try {
+                    await this.plugin.togglePin(id);
+                } finally {
+                    if (pin.isConnected) {
+                        pin.disabled = false;
+                    }
+                }
+            }
+            return;
+        }
         const toggle = target.closest("[data-sad-toggle]");
         if (toggle) {
             event.preventDefault();

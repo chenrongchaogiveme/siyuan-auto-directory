@@ -4,6 +4,7 @@ export const DEFAULT_CONFIG = Object.freeze({
     autoExpand: true,
     showChildCount: true,
     showReferencedDocs: true,
+    showDocumentTags: true,
     showCreatedTime: false,
     showUpdatedTime: true,
     confirmMove: true,

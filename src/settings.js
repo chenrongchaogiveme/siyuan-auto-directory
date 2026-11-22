@@ -51,6 +51,13 @@ export function openSettingsDialog(config, saveConfig, reloadPanels) {
   </label>
   <label class="sad-settings__toggle">
     <span class="sad-settings__toggle-text">
+      <span class="sad-settings__label">显示文档标签</span>
+      <span class="sad-settings__hint">在目录行展示文档内使用的 #标签#；单标签靠右显示，多个标签在标题下方左侧换行展示。</span>
+    </span>
+    <input id="sad-show-tags" type="checkbox" class="b3-switch" ${config.showDocumentTags !== false ? "checked" : ""}>
+  </label>
+  <label class="sad-settings__toggle">
+    <span class="sad-settings__toggle-text">
       <span class="sad-settings__label">移动前确认</span>
       <span class="sad-settings__hint">拖拽移动时先确认；可在确认框中勾选“不再提示”，再从这里重新开启。</span>
     </span>
@@ -58,6 +65,7 @@ export function openSettingsDialog(config, saveConfig, reloadPanels) {
   </label>
   <div class="sad-settings__note">
     有子文档或正文引用文档时自动显示，不再区分空白文档。<br>
+    点击标题右侧的图钉可置顶当前层级，置顶状态会自动保存。<br>
     目录是阅读辅助浮层，不会写入正文；旧版目录块可在面板顶部清理。
   </div>
 </div>
@@ -117,6 +125,7 @@ export function openSettingsDialog(config, saveConfig, reloadPanels) {
         const updatedTime = dialog.element.querySelector("#sad-show-updated-time");
         const createdTime = dialog.element.querySelector("#sad-show-created-time");
         const references = dialog.element.querySelector("#sad-show-references");
+        const tags = dialog.element.querySelector("#sad-show-tags");
         const moveConfirm = dialog.element.querySelector("#sad-confirm-move");
         const next = normalizeConfig({
             maxDepth: number("#sad-max-depth", config.maxDepth),
@@ -126,6 +135,7 @@ export function openSettingsDialog(config, saveConfig, reloadPanels) {
             showUpdatedTime: updatedTime ? updatedTime.checked : config.showUpdatedTime,
             showCreatedTime: createdTime ? createdTime.checked : config.showCreatedTime,
             showReferencedDocs: references ? references.checked : config.showReferencedDocs,
+            showDocumentTags: tags ? tags.checked : config.showDocumentTags,
             confirmMove: moveConfirm ? moveConfirm.checked : config.confirmMove,
         });
         try {

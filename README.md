@@ -24,6 +24,8 @@ The plugin renders in the normal DOM above `.protyle-content`. It looks like it 
 
 - Shows the directory whenever the current document has child documents or body references; it is no longer limited to empty documents.
 - Renders the real child-document hierarchy in SiYuan document-tree order. References are attached to the note that contains them instead of being flattened to the top level.
+- Pin a document to the top of its current level with the pin button next to the title; pinned rows stay above newly added siblings and can be unpinned.
+- Show each document's #tags: a single tag stays on the right side of the row, while multiple tags wrap below the title on the left.
 - Shows the last-updated time on each row. Created time is available in the title tooltip by default and can be shown permanently in settings.
 - Shows up to two referenced-document paths per note by default; click `+N` to expand the rest. Paths open the target document directly.
 - Nodes referenced by another directory note keep only a compact "referenced" badge.
@@ -47,7 +49,7 @@ I also maintain [QuickAdd](https://github.com/chenrongchaogiveme/siyuan-quickadd
 `index.js` is a build artifact, not the hand-written entry point. The source is split by responsibility:
 
 - `src/api.js`: SiYuan kernel APIs
-- `src/tree.js`: document tree building, reference merging, and signatures
+- `src/tree.js`: document tree building, pin sorting, tag merging, reference merging, and signatures
 - `src/renderer.js`: renders only visible levels and a small number of inline references
 - `src/panel.js`: overlay lifecycle, expand, open, and delete
 - `src/move-dialog.js`: move confirmation and "do not ask again"
@@ -91,6 +93,7 @@ Open settings from the list icon on the right side of the top bar:
 - Show child-document count
 - Show last-updated time
 - Show created time (when off, it remains in the title tooltip)
+- Show document tags (single tags on the right; multiple tags wrap below the title)
 - Show documents referenced in the body (when off, only real child documents are shown)
 - Confirm before moving (when off, drag-and-drop moves run immediately; you can also disable the prompt in the first move dialog)
 
@@ -105,6 +108,11 @@ The old "only show in empty documents" option has been removed.
 ## Changelog
 
 Newest version first.
+
+### 1.1.0
+
+- Added: pin a document to the top of its current level from the pin button next to the title. New siblings no longer push it down; click again to unpin.
+- Added: show document #tags. Single tags stay on the right side of the row; multiple tags wrap below the title on the left. Can be disabled in settings.
 
 ### 1.0.1
 
