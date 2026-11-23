@@ -55,13 +55,34 @@ test("same-title documents with different paths are kept and attached by path", 
     assert.equal(forest[0].children.filter((node) => node.title === "B").length, 2);
 });
 
+test("notebook root document is merged into the notebook row", () => {
+    const forest = buildWorkspaceForest([
+        {id: "box1", box: "box1", hpath: "/学习库", path: "/box1.sy", content: "学习库"},
+        {id: "a", box: "box1", hpath: "/学习库/A", path: "/box1/a.sy", content: "A"},
+    ], notebooks);
+    assert.equal(forest[0].id, "box1");
+    assert.equal(forest[0].children.length, 1);
+    assert.equal(forest[0].children[0].id, "a");
+    assert.equal(countDocuments(forest), 1);
+    assert.deepEqual(findAncestorKeys(forest, "box1"), ["box:box1"]);
+});
+
+test("sort maps reproduce SiYuan document tree order", () => {
+    const forest = buildWorkspaceForest([
+        {id: "a", box: "box1", hpath: "/A", path: "/a.sy", content: "A"},
+        {id: "b", box: "box1", hpath: "/B", path: "/b.sy", content: "B"},
+        {id: "c", box: "box1", hpath: "/C", path: "/c.sy", content: "C"},
+    ], notebooks, {box1: {c: 1, a: 2, b: 3}});
+    assert.deepEqual(forest[0].children.map((node) => node.id), ["c", "a", "b"]);
+});
+
 test("countDocuments counts real documents only", () => {
     assert.equal(countDocuments(buildWorkspaceForest(rows, notebooks)), 5);
 });
 
 test("findAncestorKeys returns notebook and parent chain for the current document", () => {
     const forest = buildWorkspaceForest(rows, notebooks);
-    assert.deepEqual(findAncestorKeys(forest, "d3"), ["box:box1", "d1", "d2"]);
+    assert.deepEqual(findAncestorKeys(forest, "d3"), ["box:box1", "d1", "d2", "d3"]);
     assert.deepEqual(findAncestorKeys(forest, "missing"), []);
 });
 

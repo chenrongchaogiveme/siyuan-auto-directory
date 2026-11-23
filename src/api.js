@@ -74,6 +74,29 @@ export async function queryWorkspaceDocRows() {
     return rows;
 }
 
+export async function readNotebookSortMap(notebook) {
+    const box = String(notebook == null ? "" : notebook);
+    if (!box) {
+        return {};
+    }
+    try {
+        const result = await fetchSyncPost("/api/file/getFile", {path: `/data/${box}/.siyuan/sort.json`}, undefined, false);
+        if (result && typeof result === "object" && !Array.isArray(result) && !("code" in result)) {
+            return result;
+        }
+        if (result && typeof result.text === "function") {
+            const raw = await result.text();
+            const parsed = raw ? JSON.parse(raw) : null;
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                return parsed;
+            }
+        }
+    } catch (error) {
+        console.warn("[siyuan-auto-directory] 读取文档树排序失败", error);
+    }
+    return {};
+}
+
 export async function listNotebooks() {
     const data = await readPost("/api/notebook/lsNotebooks", {});
     return data && Array.isArray(data.notebooks) ? data.notebooks : [];

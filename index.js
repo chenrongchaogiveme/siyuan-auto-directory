@@ -384,6 +384,28 @@ async function queryWorkspaceDocRows() {
   }
   return rows;
 }
+async function readNotebookSortMap(notebook) {
+  const box = String(notebook == null ? "" : notebook);
+  if (!box) {
+    return {};
+  }
+  try {
+    const result = await (0, import_siyuan.fetchSyncPost)("/api/file/getFile", { path: `/data/${box}/.siyuan/sort.json` }, void 0, false);
+    if (result && typeof result === "object" && !Array.isArray(result) && !("code" in result)) {
+      return result;
+    }
+    if (result && typeof result.text === "function") {
+      const raw = await result.text();
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed;
+      }
+    }
+  } catch (error) {
+    console.warn("[siyuan-auto-directory] \u8BFB\u53D6\u6587\u6863\u6811\u6392\u5E8F\u5931\u8D25", error);
+  }
+  return {};
+}
 async function listNotebooks() {
   const data = await readPost("/api/notebook/lsNotebooks", {});
   return data && Array.isArray(data.notebooks) ? data.notebooks : [];
@@ -2112,7 +2134,18 @@ function sortSiblings(nodes) {
   nodes.sort((left, right) => left.sort - right.sort || left.hpath.localeCompare(right.hpath, "zh-CN") || left.created - right.created || left.id.localeCompare(right.id));
   nodes.forEach((node) => sortSiblings(node.children));
 }
-function buildWorkspaceForest(rows, notebooks) {
+function sortOf(row, sortMaps) {
+  const map = sortMaps && sortMaps[text(row.box)];
+  if (map && Object.prototype.hasOwnProperty.call(map, row.id)) {
+    const value = Number(map[row.id]);
+    if (Number.isFinite(value)) {
+      return value;
+    }
+  }
+  const fallback = Number(row.sort);
+  return Number.isFinite(fallback) ? fallback : 0;
+}
+function buildWorkspaceForest(rows, notebooks, sortMaps) {
   const notebookNames = /* @__PURE__ */ new Map();
   const notebookOrder = /* @__PURE__ */ new Map();
   (Array.isArray(notebooks) ? notebooks : []).forEach((notebook, index) => {
@@ -2127,7 +2160,7 @@ function buildWorkspaceForest(rows, notebooks) {
     if (!boxes.has(boxId)) {
       boxes.set(boxId, {
         key: `box:${boxId}`,
-        id: "",
+        id: boxId,
         title: notebookNames.get(boxId) || boxId,
         hpath: "/",
         box: boxId,
@@ -2148,7 +2181,15 @@ function buildWorkspaceForest(rows, notebooks) {
     if (!row || !row.id) {
       return;
     }
-    const box = ensureBox(text(row.box) || "unknown");
+    const boxId = text(row.box) || "unknown";
+    const box = ensureBox(boxId);
+    if (text(row.id) === boxId) {
+      if (!notebookNames.has(boxId) && text(row.content)) {
+        box.title = text(row.content);
+        box.notebook = box.title;
+      }
+      return;
+    }
     const hpath = text(row.hpath);
     const segments = hpath.split("/").filter(Boolean);
     const node = {
@@ -2163,7 +2204,7 @@ function buildWorkspaceForest(rows, notebooks) {
       isNotebook: false,
       depth: 0,
       parentKey: "",
-      sort: Number(row.sort) || 0,
+      sort: sortOf(row, sortMaps),
       created: Number(row.created) || 0,
       children: []
     };
@@ -2214,8 +2255,8 @@ function findAncestorKeys(forest, id) {
     return [];
   }
   const visit = (node, chain) => {
-    if (!node.isNotebook && node.id === target) {
-      return chain;
+    if (node.id && node.id === target) {
+      return chain.concat(node.key);
     }
     for (const child of node.children) {
       const found = visit(child, chain.concat(node.key));
@@ -2284,7 +2325,7 @@ function collectVisibleRows(forest, expanded, currentId) {
         hasChildren,
         expanded: Boolean(isExpanded && hasChildren),
         isNotebook: Boolean(node.isNotebook),
-        current: !node.isNotebook && node.id === currentId,
+        current: Boolean(node.id) && node.id === currentId,
         sub: ""
       });
       if (isExpanded && hasChildren) {
@@ -3129,7 +3170,13 @@ var AutoDirectoryPlugin = class extends import_siyuan5.Plugin {
         return [];
       })
     ]);
-    const forest = buildWorkspaceForest(rows, notebooks);
+    const sortMaps = {};
+    await Promise.all(notebooks.map(async (notebook) => {
+      if (notebook && notebook.id) {
+        sortMaps[notebook.id] = await readNotebookSortMap(notebook.id);
+      }
+    }));
+    const forest = buildWorkspaceForest(rows, notebooks, sortMaps);
     this.workspaceForest = forest;
     this.workspaceForestAt = now;
     return forest;

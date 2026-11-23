@@ -55,7 +55,7 @@ export function collectVisibleRows(forest, expanded, currentId) {
                 hasChildren,
                 expanded: Boolean(isExpanded && hasChildren),
                 isNotebook: Boolean(node.isNotebook),
-                current: !node.isNotebook && node.id === currentId,
+                current: Boolean(node.id) && node.id === currentId,
                 sub: "",
             });
             if (isExpanded && hasChildren) {

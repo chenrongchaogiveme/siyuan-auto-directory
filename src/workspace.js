@@ -27,7 +27,19 @@ function sortSiblings(nodes) {
     nodes.forEach((node) => sortSiblings(node.children));
 }
 
-export function buildWorkspaceForest(rows, notebooks) {
+function sortOf(row, sortMaps) {
+    const map = sortMaps && sortMaps[text(row.box)];
+    if (map && Object.prototype.hasOwnProperty.call(map, row.id)) {
+        const value = Number(map[row.id]);
+        if (Number.isFinite(value)) {
+            return value;
+        }
+    }
+    const fallback = Number(row.sort);
+    return Number.isFinite(fallback) ? fallback : 0;
+}
+
+export function buildWorkspaceForest(rows, notebooks, sortMaps) {
     const notebookNames = new Map();
     const notebookOrder = new Map();
     (Array.isArray(notebooks) ? notebooks : []).forEach((notebook, index) => {
@@ -43,7 +55,7 @@ export function buildWorkspaceForest(rows, notebooks) {
         if (!boxes.has(boxId)) {
             boxes.set(boxId, {
                 key: `box:${boxId}`,
-                id: "",
+                id: boxId,
                 title: notebookNames.get(boxId) || boxId,
                 hpath: "/",
                 box: boxId,
@@ -65,7 +77,15 @@ export function buildWorkspaceForest(rows, notebooks) {
         if (!row || !row.id) {
             return;
         }
-        const box = ensureBox(text(row.box) || "unknown");
+        const boxId = text(row.box) || "unknown";
+        const box = ensureBox(boxId);
+        if (text(row.id) === boxId) {
+            if (!notebookNames.has(boxId) && text(row.content)) {
+                box.title = text(row.content);
+                box.notebook = box.title;
+            }
+            return;
+        }
         const hpath = text(row.hpath);
         const segments = hpath.split("/").filter(Boolean);
         const node = {
@@ -80,7 +100,7 @@ export function buildWorkspaceForest(rows, notebooks) {
             isNotebook: false,
             depth: 0,
             parentKey: "",
-            sort: Number(row.sort) || 0,
+            sort: sortOf(row, sortMaps),
             created: Number(row.created) || 0,
             children: [],
         };
@@ -139,8 +159,8 @@ export function findAncestorKeys(forest, id) {
         return [];
     }
     const visit = (node, chain) => {
-        if (!node.isNotebook && node.id === target) {
-            return chain;
+        if (node.id && node.id === target) {
+            return chain.concat(node.key);
         }
         for (const child of node.children) {
             const found = visit(child, chain.concat(node.key));

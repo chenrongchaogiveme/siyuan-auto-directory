@@ -1094,13 +1094,14 @@
 }
 
 .sad-overlay__twisty {
-  flex: 0 0 14px;
-  width: 14px;
+  flex: 0 0 20px;
+  width: 20px;
   color: var(--b3-theme-on-surface-light, #8996a8);
-  font-size: 11px;
-  line-height: 1;
+  font-size: 15px;
+  line-height: 20px;
   text-align: center;
   cursor: pointer;
+  user-select: none;
 }
 
 .sad-overlay__body {

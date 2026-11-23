@@ -6,6 +6,7 @@ import {
     listDocTree,
     listDocTreeRange,
     listNotebooks,
+    readNotebookSortMap,
     queryDocRows,
     queryIncomingReferenceRows,
     queryReferenceRows,
@@ -608,7 +609,13 @@ export class AutoDirectoryPlugin extends Plugin {
                 return [];
             }),
         ]);
-        const forest = buildWorkspaceForest(rows, notebooks);
+        const sortMaps = {};
+        await Promise.all(notebooks.map(async (notebook) => {
+            if (notebook && notebook.id) {
+                sortMaps[notebook.id] = await readNotebookSortMap(notebook.id);
+            }
+        }));
+        const forest = buildWorkspaceForest(rows, notebooks, sortMaps);
         this.workspaceForest = forest;
         this.workspaceForestAt = now;
         return forest;
