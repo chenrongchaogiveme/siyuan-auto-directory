@@ -5,11 +5,13 @@ import {
     getHPath,
     listDocTree,
     listDocTreeRange,
+    listNotebooks,
     queryDocRows,
     queryIncomingReferenceRows,
     queryReferenceRows,
     queryTagRows,
     queryTreeRows,
+    queryWorkspaceDocRows,
 } from "./api.js";
 import { DEFAULT_CONFIG, WS_COMMANDS } from "./constants.js";
 import { normalizeConfig } from "./config.js";
@@ -23,6 +25,7 @@ import { loadLegacyBlocks } from "./legacy.js";
 import { appendNavigationOrigin } from "./navigation.js";
 import { DirectoryPanel } from "./panel.js";
 import { DirectoryOverlay } from "./overlay.js";
+import { buildWorkspaceForest } from "./workspace.js";
 import {
     addReference,
     applyIncomingReferences,
@@ -48,6 +51,8 @@ export class AutoDirectoryPlugin extends Plugin {
         this.protyles = new Set();
         this.navigationStacks = new Map();
         this.overlay = null;
+        this.workspaceForest = null;
+        this.workspaceForestAt = 0;
         this.onProtyleEvent = this.onProtyleEvent.bind(this);
         this.onWsMain = this.onWsMain.bind(this);
         this.onGlobalKeydown = this.onGlobalKeydown.bind(this);
@@ -149,6 +154,8 @@ export class AutoDirectoryPlugin extends Plugin {
         if (!detail || !WS_COMMANDS.has(detail.cmd)) {
             return;
         }
+        this.workspaceForest = null;
+        this.workspaceForestAt = 0;
         const delay = detail.cmd === "transactions" ? 650 : 140;
         this.protyles.forEach((protyle) => {
             const element = protyle && protyle.element;
@@ -589,15 +596,28 @@ export class AutoDirectoryPlugin extends Plugin {
         return visible[0] || protyles[0];
     }
 
+    async loadWorkspaceForest() {
+        const now = Date.now();
+        if (this.workspaceForest && now - this.workspaceForestAt < 3000) {
+            return this.workspaceForest;
+        }
+        const [rows, notebooks] = await Promise.all([
+            queryWorkspaceDocRows(),
+            listNotebooks().catch((error) => {
+                console.warn("[siyuan-auto-directory] 读取笔记本列表失败", error);
+                return [];
+            }),
+        ]);
+        const forest = buildWorkspaceForest(rows, notebooks);
+        this.workspaceForest = forest;
+        this.workspaceForestAt = now;
+        return forest;
+    }
+
     async openQuickDirectory() {
         const protyle = this.activeProtyle();
         if (!protyle) {
             showMessage("没有找到可用的编辑器");
-            return;
-        }
-        const panel = this.panels.get(protyle);
-        if (panel && panel.tree) {
-            this.overlay.open(panel.context, panel.tree);
             return;
         }
         const context = await this.resolveContext(protyle);
@@ -605,14 +625,20 @@ export class AutoDirectoryPlugin extends Plugin {
             showMessage("无法确定当前文档");
             return;
         }
-        this.overlay.open(context, null);
+        if (!this.overlay) {
+            return;
+        }
+        this.overlay.open(context);
         try {
-            const loaded = await this.loadTree(context, protyle);
-            if (this.overlay && this.overlay.isOpen && this.overlay.context && this.overlay.context.id === context.id) {
-                this.overlay.setTree(loaded.tree);
+            const forest = await this.loadWorkspaceForest();
+            if (this.overlay && this.overlay.isOpen) {
+                this.overlay.setWorkspace(forest, context.id);
             }
         } catch (error) {
             console.warn("[siyuan-auto-directory] 加载快速目录失败", error);
+            if (this.overlay && this.overlay.isOpen) {
+                this.overlay.showError("加载工作空间目录失败，请稍后重试");
+            }
         }
     }
     openDocument(id, options = {}) {

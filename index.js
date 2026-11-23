@@ -98,6 +98,11 @@ function openSettingsDialog(config, saveConfig, reloadPanels) {
     <input class="b3-text-field fn__block" id="sad-expanded-depth" type="number" min="0" max="50" value="${config.defaultExpandedDepth}">
   </label>
   <div class="sad-settings__divider"></div>
+  <div class="sad-settings__field">
+    <span class="sad-settings__label">\u5FEB\u901F\u76EE\u5F55\u5FEB\u6377\u952E</span>
+    <span class="sad-settings__hint">\u9ED8\u8BA4 Ctrl+Alt+D\u3002\u53EF\u5728\u300C\u601D\u6E90\u8BBE\u7F6E \u2192 \u5FEB\u6377\u952E\u300D\u641C\u7D22\u201C\u5FEB\u901F\u76EE\u5F55\u201D\u81EA\u5B9A\u4E49\uFF1B\u5FEB\u6377\u952E\u7531\u601D\u6E90\u7EDF\u4E00\u7BA1\u7406\uFF0C\u907F\u514D\u4E0E\u5176\u5B83\u547D\u4EE4\u51B2\u7A81\u3002</span>
+  </div>
+  <div class="sad-settings__divider"></div>
   <label class="sad-settings__toggle">
     <span class="sad-settings__toggle-text">
       <span class="sad-settings__label">\u9ED8\u8BA4\u5C55\u5F00\u76EE\u5F55</span>
@@ -151,6 +156,7 @@ function openSettingsDialog(config, saveConfig, reloadPanels) {
     \u6709\u5B50\u6587\u6863\u6216\u6B63\u6587\u5F15\u7528\u6587\u6863\u65F6\u81EA\u52A8\u663E\u793A\uFF0C\u4E0D\u518D\u533A\u5206\u7A7A\u767D\u6587\u6863\u3002<br>
     \u70B9\u51FB\u6807\u9898\u53F3\u4FA7\u7684\u56FE\u9489\u53EF\u7F6E\u9876\u5F53\u524D\u5C42\u7EA7\uFF0C\u7F6E\u9876\u72B6\u6001\u4F1A\u81EA\u52A8\u4FDD\u5B58\u3002<br>
     \u6807\u9898\u680F\u7684\u6392\u5E8F\u4E0B\u62C9\u53EA\u5F71\u54CD\u5F53\u524D\u76EE\u5F55\u663E\u793A\uFF0C\u5207\u56DE\u201C\u6587\u6863\u6811\u987A\u5E8F\u201D\u6216\u5207\u6362\u6587\u6863\u5373\u6062\u590D\u3002<br>
+    \u5FEB\u901F\u76EE\u5F55\u663E\u793A\u6574\u4E2A\u5DE5\u4F5C\u7A7A\u95F4\uFF0C\u5E76\u81EA\u52A8\u5C55\u5F00\u3001\u5B9A\u4F4D\u5F53\u524D\u6587\u6863\uFF1B\u641C\u7D22\u65F6\u7528\u9762\u5305\u5C51\u533A\u5206\u540C\u540D\u6587\u6863\u3002<br>
     \u76EE\u5F55\u662F\u9605\u8BFB\u8F85\u52A9\u6D6E\u5C42\uFF0C\u4E0D\u4F1A\u5199\u5165\u6B63\u6587\uFF1B\u65E7\u7248\u76EE\u5F55\u5757\u53EF\u5728\u9762\u677F\u9876\u90E8\u6E05\u7406\u3002
   </div>
 </div>
@@ -368,6 +374,19 @@ async function queryTreeRows(notebook, hpath, path, rootId, includeAll = false) 
     throw new Error("SQL \u8FD4\u56DE\u683C\u5F0F\u5F02\u5E38");
   }
   return rows;
+}
+async function queryWorkspaceDocRows() {
+  const rows = await readPost("/api/query/sql", {
+    stmt: `SELECT id, box, hpath, path, content, created, updated, sort FROM blocks WHERE type = 'd' ORDER BY box, hpath ASC LIMIT 20000`
+  });
+  if (!Array.isArray(rows)) {
+    throw new Error("SQL \u8FD4\u56DE\u683C\u5F0F\u5F02\u5E38");
+  }
+  return rows;
+}
+async function listNotebooks() {
+  const data = await readPost("/api/notebook/lsNotebooks", {});
+  return data && Array.isArray(data.notebooks) ? data.notebooks : [];
 }
 async function queryReferenceRows(sourceIds) {
   const unique = Array.from(new Set((sourceIds || []).filter(Boolean)));
@@ -2073,35 +2092,208 @@ var DirectoryPanel = class {
   }
 };
 
+// src/workspace.js
+var WORKSPACE_LIMIT = 400;
+function breadcrumbOf(node) {
+  const parts = [node.notebook];
+  node.parentPath.split("/").filter(Boolean).forEach((part) => parts.push(part));
+  return parts.filter(Boolean).join(" / ");
+}
+function parentIdFromPath(path) {
+  const parts = text(path).split("/").filter(Boolean);
+  return parts.length > 1 ? parts[parts.length - 2] : "";
+}
+function assignDepth(node, depth, parentKey) {
+  node.depth = depth;
+  node.parentKey = parentKey;
+  node.children.forEach((child) => assignDepth(child, depth + 1, node.key));
+}
+function sortSiblings(nodes) {
+  nodes.sort((left, right) => left.sort - right.sort || left.hpath.localeCompare(right.hpath, "zh-CN") || left.created - right.created || left.id.localeCompare(right.id));
+  nodes.forEach((node) => sortSiblings(node.children));
+}
+function buildWorkspaceForest(rows, notebooks) {
+  const notebookNames = /* @__PURE__ */ new Map();
+  const notebookOrder = /* @__PURE__ */ new Map();
+  (Array.isArray(notebooks) ? notebooks : []).forEach((notebook, index) => {
+    if (notebook && notebook.id) {
+      const id = text(notebook.id);
+      notebookNames.set(id, text(notebook.name) || id);
+      notebookOrder.set(id, index);
+    }
+  });
+  const boxes = /* @__PURE__ */ new Map();
+  const ensureBox = (boxId) => {
+    if (!boxes.has(boxId)) {
+      boxes.set(boxId, {
+        key: `box:${boxId}`,
+        id: "",
+        title: notebookNames.get(boxId) || boxId,
+        hpath: "/",
+        box: boxId,
+        notebook: notebookNames.get(boxId) || boxId,
+        parentPath: "",
+        isNotebook: true,
+        depth: 0,
+        parentKey: "",
+        children: [],
+        byId: /* @__PURE__ */ new Map(),
+        byHpath: /* @__PURE__ */ new Map(),
+        nodes: []
+      });
+    }
+    return boxes.get(boxId);
+  };
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    if (!row || !row.id) {
+      return;
+    }
+    const box = ensureBox(text(row.box) || "unknown");
+    const hpath = text(row.hpath);
+    const segments = hpath.split("/").filter(Boolean);
+    const node = {
+      key: text(row.id),
+      id: text(row.id),
+      title: text(row.content) || segments[segments.length - 1] || "\u672A\u547D\u540D\u6587\u6863",
+      hpath,
+      box: box.box,
+      notebook: box.title,
+      parentPath: segments.length > 1 ? "/" + segments.slice(0, -1).join("/") : "",
+      parentId: parentIdFromPath(row.path),
+      isNotebook: false,
+      depth: 0,
+      parentKey: "",
+      sort: Number(row.sort) || 0,
+      created: Number(row.created) || 0,
+      children: []
+    };
+    box.byId.set(node.id, node);
+    if (hpath && !box.byHpath.has(hpath)) {
+      box.byHpath.set(hpath, node);
+    }
+    box.nodes.push(node);
+  });
+  Array.from(boxes.values()).forEach((box) => {
+    box.nodes.forEach((node) => {
+      const parent = (node.parentId ? box.byId.get(node.parentId) : null) || (node.parentPath ? box.byHpath.get(node.parentPath) : null);
+      if (parent && parent !== node) {
+        parent.children.push(node);
+      } else {
+        box.children.push(node);
+      }
+    });
+  });
+  const forest = Array.from(boxes.values()).filter((box) => box.children.length).sort((left, right) => {
+    const leftOrder = notebookOrder.has(left.box) ? notebookOrder.get(left.box) : Number.MAX_SAFE_INTEGER;
+    const rightOrder = notebookOrder.has(right.box) ? notebookOrder.get(right.box) : Number.MAX_SAFE_INTEGER;
+    return leftOrder - rightOrder || left.title.localeCompare(right.title, "zh-CN");
+  });
+  forest.forEach((box) => {
+    sortSiblings(box.children);
+    box.children.forEach((child) => assignDepth(child, 1, box.key));
+    delete box.byId;
+    delete box.byHpath;
+    delete box.nodes;
+  });
+  return forest;
+}
+function countDocuments(forest) {
+  let total = 0;
+  const walk = (node) => {
+    if (!node.isNotebook) {
+      total += 1;
+    }
+    node.children.forEach(walk);
+  };
+  (Array.isArray(forest) ? forest : []).forEach(walk);
+  return total;
+}
+function findAncestorKeys(forest, id) {
+  const target = text(id);
+  if (!target) {
+    return [];
+  }
+  const visit = (node, chain) => {
+    if (!node.isNotebook && node.id === target) {
+      return chain;
+    }
+    for (const child of node.children) {
+      const found = visit(child, chain.concat(node.key));
+      if (found) {
+        return found;
+      }
+    }
+    return null;
+  };
+  for (const box of Array.isArray(forest) ? forest : []) {
+    const found = visit(box, []);
+    if (found) {
+      return found;
+    }
+  }
+  return [];
+}
+function searchWorkspaceRows(forest, query, limit = WORKSPACE_LIMIT) {
+  const keyword = text(query).trim().toLowerCase();
+  const rows = [];
+  if (!keyword) {
+    return rows;
+  }
+  const walk = (node) => {
+    if (rows.length >= limit) {
+      return;
+    }
+    if (!node.isNotebook && (node.title.toLowerCase().includes(keyword) || node.hpath.toLowerCase().includes(keyword))) {
+      rows.push({
+        key: node.key,
+        id: node.id,
+        title: node.title,
+        depth: 0,
+        hasChildren: false,
+        expanded: false,
+        isNotebook: false,
+        current: false,
+        sub: breadcrumbOf(node)
+      });
+    }
+    node.children.forEach(walk);
+  };
+  (Array.isArray(forest) ? forest : []).forEach(walk);
+  return rows;
+}
+
 // src/overlay.js
 var OVERLAY_LIMIT = 400;
 function escapeHtml2(value) {
   return text(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
-function flattenTree(tree, depth = 0, rows = []) {
-  const children = tree && Array.isArray(tree.children) ? tree.children : [];
-  children.forEach((node) => {
-    if (!node || !node.id || node.external) {
-      return;
-    }
-    rows.push({
-      id: text(node.id),
-      title: text(node.title) || "\u672A\u547D\u540D\u6587\u6863",
-      hpath: text(node.hpath),
-      depth,
-      hasChildren: Boolean(node.children && node.children.length)
+function collectVisibleRows(forest, expanded, currentId) {
+  const rows = [];
+  const walk = (nodes, depth) => {
+    (Array.isArray(nodes) ? nodes : []).forEach((node) => {
+      if (!node || !node.key) {
+        return;
+      }
+      const isExpanded = expanded && expanded.has(node.key);
+      const hasChildren = Boolean(node.children && node.children.length);
+      rows.push({
+        key: node.key,
+        id: node.id,
+        title: node.title,
+        depth,
+        hasChildren,
+        expanded: Boolean(isExpanded && hasChildren),
+        isNotebook: Boolean(node.isNotebook),
+        current: !node.isNotebook && node.id === currentId,
+        sub: ""
+      });
+      if (isExpanded && hasChildren) {
+        walk(node.children, depth + 1);
+      }
     });
-    flattenTree(node, depth + 1, rows);
-  });
+  };
+  walk(forest, 0);
   return rows;
-}
-function filterRows(rows, query) {
-  const keyword = text(query).trim().toLowerCase();
-  const list = Array.isArray(rows) ? rows : [];
-  if (!keyword) {
-    return list.slice();
-  }
-  return list.filter((row) => row.title.toLowerCase().includes(keyword) || row.hpath.toLowerCase().includes(keyword));
 }
 var DirectoryOverlay = class {
   constructor(plugin) {
@@ -2111,18 +2303,22 @@ var DirectoryOverlay = class {
     this.list = null;
     this.scope = null;
     this.context = null;
+    this.forest = [];
+    this.expanded = /* @__PURE__ */ new Set();
+    this.currentId = "";
     this.rows = [];
     this.visible = [];
     this.activeIndex = 0;
     this.query = "";
     this.loading = false;
+    this.scrollToCurrent = false;
     this.previousFocus = null;
     this.onKeydownBound = (event) => this.onKeydown(event);
   }
   get isOpen() {
     return Boolean(this.element);
   }
-  open(context, tree) {
+  open(context) {
     this.context = context || null;
     this.previousFocus = document.activeElement;
     if (!this.element) {
@@ -2133,7 +2329,15 @@ var DirectoryOverlay = class {
       this.input.value = "";
     }
     this.activeIndex = 0;
-    this.setTree(tree);
+    this.forest = [];
+    this.expanded = /* @__PURE__ */ new Set();
+    this.currentId = "";
+    this.loading = true;
+    this.scrollToCurrent = false;
+    if (this.scope) {
+      this.scope.textContent = "\u6B63\u5728\u52A0\u8F7D\u2026";
+    }
+    this.applyFilter();
     document.addEventListener("keydown", this.onKeydownBound, true);
     window.setTimeout(() => {
       if (this.input) {
@@ -2141,16 +2345,45 @@ var DirectoryOverlay = class {
       }
     }, 0);
   }
-  setTree(tree) {
-    this.loading = !tree;
-    this.rows = flattenTree(tree || { children: [] });
-    if (this.rows.length > OVERLAY_LIMIT) {
-      this.rows = this.rows.slice(0, OVERLAY_LIMIT);
-    }
+  setWorkspace(forest, currentId) {
+    this.forest = Array.isArray(forest) ? forest : [];
+    this.currentId = text(currentId);
+    this.loading = false;
+    this.expanded = /* @__PURE__ */ new Set();
+    findAncestorKeys(this.forest, this.currentId).forEach((key) => this.expanded.add(key));
+    this.scrollToCurrent = Boolean(this.currentId);
     if (this.scope) {
-      this.scope.textContent = this.rows.length ? `${this.rows.length} \u7BC7\u6587\u6863` : "";
+      const total = countDocuments(this.forest);
+      this.scope.textContent = total ? `${total} \u7BC7\u6587\u6863 \xB7 ${this.forest.length} \u4E2A\u7B14\u8BB0\u672C` : "";
     }
     this.applyFilter();
+    const index = this.visible.findIndex((row) => row.current);
+    if (index >= 0) {
+      this.activeIndex = index;
+      this.renderList();
+    }
+  }
+  showError(message) {
+    this.loading = false;
+    this.visible = [];
+    this.rows = [];
+    if (this.scope) {
+      this.scope.textContent = "";
+    }
+    if (this.list) {
+      this.list.innerHTML = '<div class="sad-overlay__empty">' + escapeHtml2(message || "\u52A0\u8F7D\u5DE5\u4F5C\u7A7A\u95F4\u76EE\u5F55\u5931\u8D25") + "</div>";
+    }
+  }
+  applyFilter() {
+    if (this.query.trim()) {
+      this.visible = searchWorkspaceRows(this.forest, this.query, OVERLAY_LIMIT);
+    } else {
+      this.visible = collectVisibleRows(this.forest, this.expanded, this.currentId);
+    }
+    if (this.activeIndex >= this.visible.length) {
+      this.activeIndex = Math.max(0, this.visible.length - 1);
+    }
+    this.renderList();
   }
   build() {
     const wrapper = document.createElement("div");
@@ -2159,11 +2392,11 @@ var DirectoryOverlay = class {
   <div class="sad-overlay__backdrop" data-sad-overlay-close></div>
   <div class="sad-overlay__panel" role="dialog" aria-modal="true" aria-label="\u5FEB\u901F\u76EE\u5F55">
     <div class="sad-overlay__head">
-      <input class="sad-overlay__search b3-text-field" type="text" placeholder="\u641C\u7D22\u5F53\u524D\u76EE\u5F55\u4E0B\u7684\u6587\u6863\u2026" aria-label="\u641C\u7D22\u6587\u6863">
+      <input class="sad-overlay__search b3-text-field" type="text" placeholder="\u641C\u7D22\u6574\u4E2A\u5DE5\u4F5C\u7A7A\u95F4\u7684\u6587\u6863\u2026" aria-label="\u641C\u7D22\u6587\u6863">
       <span class="sad-overlay__scope"></span>
     </div>
     <div class="sad-overlay__list" role="listbox" aria-label="\u76EE\u5F55\u6587\u6863"></div>
-    <div class="sad-overlay__foot">\u2191\u2193 \u9009\u62E9 \xB7 Enter \u6253\u5F00 \xB7 Esc \u5173\u95ED</div>
+    <div class="sad-overlay__foot">\u2191\u2193 \u9009\u62E9 \xB7 \u2190\u2192 \u6298\u53E0/\u5C55\u5F00 \xB7 Enter \u6253\u5F00 \xB7 Esc \u5173\u95ED</div>
   </div>`;
     wrapper.addEventListener("mousedown", (event) => {
       if (event.target && event.target.closest && event.target.closest("[data-sad-overlay-close]")) {
@@ -2172,12 +2405,28 @@ var DirectoryOverlay = class {
       }
     });
     wrapper.addEventListener("click", (event) => {
-      const row = event.target && event.target.closest ? event.target.closest("[data-sad-overlay-row]") : null;
+      const target = event.target;
+      if (!target || !target.closest) {
+        return;
+      }
+      const toggle = target.closest("[data-sad-overlay-toggle]");
+      if (toggle) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.toggle(toggle.getAttribute("data-sad-overlay-toggle"));
+        return;
+      }
+      const row = target.closest("[data-sad-overlay-row]");
       if (!row) {
         return;
       }
       event.preventDefault();
-      this.pick(row.getAttribute("data-sad-overlay-row"));
+      const item = this.visible.find((entry) => entry.key === row.getAttribute("data-sad-overlay-row"));
+      if (item && item.isNotebook) {
+        this.toggle(item.key);
+        return;
+      }
+      this.pick(item ? item.id : row.getAttribute("data-sad-overlay-row"));
     });
     this.input = wrapper.querySelector(".sad-overlay__search");
     this.list = wrapper.querySelector(".sad-overlay__list");
@@ -2190,30 +2439,69 @@ var DirectoryOverlay = class {
     document.body.appendChild(wrapper);
     this.element = wrapper;
   }
-  applyFilter() {
-    this.visible = filterRows(this.rows, this.query);
-    if (this.activeIndex >= this.visible.length) {
-      this.activeIndex = Math.max(0, this.visible.length - 1);
-    }
-    this.renderList();
-  }
   renderList() {
     if (!this.list) {
       return;
     }
     if (!this.visible.length) {
-      this.list.innerHTML = '<div class="sad-overlay__empty">' + (this.loading ? "\u6B63\u5728\u52A0\u8F7D\u2026" : "\u6CA1\u6709\u5339\u914D\u7684\u6587\u6863") + "</div>";
+      const empty = this.loading ? "\u6B63\u5728\u52A0\u8F7D\u2026" : this.forest.length ? "\u6CA1\u6709\u5339\u914D\u7684\u6587\u6863" : "\u6CA1\u6709\u53EF\u663E\u793A\u7684\u6587\u6863";
+      this.list.innerHTML = '<div class="sad-overlay__empty">' + empty + "</div>";
       return;
     }
-    this.list.innerHTML = this.visible.map((row, index) => `
-    <button class="sad-overlay__row${index === this.activeIndex ? " is-active" : ""}" type="button" role="option" aria-selected="${index === this.activeIndex}" data-sad-overlay-row="${escapeHtml2(row.id)}" style="padding-left:${10 + row.depth * 14}px">
-      <span class="sad-overlay__title">${escapeHtml2(row.title)}</span>
-      <span class="sad-overlay__path">${escapeHtml2(row.hpath)}</span>
-    </button>`).join("");
+    this.list.innerHTML = this.visible.map((row, index) => {
+      const classes = ["sad-overlay__row"];
+      if (index === this.activeIndex) {
+        classes.push("is-active");
+      }
+      if (row.current) {
+        classes.push("is-current");
+      }
+      if (row.isNotebook) {
+        classes.push("sad-overlay__row--box");
+      }
+      const twisty = row.hasChildren ? row.expanded ? "\u25BE" : "\u25B8" : "";
+      const sub = row.sub ? `<span class="sad-overlay__sub">${escapeHtml2(row.sub)}</span>` : "";
+      const badge = row.current ? '<span class="sad-overlay__badge">\u5F53\u524D</span>' : "";
+      return `
+    <button class="${classes.join(" ")}" type="button" role="option" aria-selected="${index === this.activeIndex}" data-sad-overlay-row="${escapeHtml2(row.key)}" style="padding-left:${8 + row.depth * 16}px">
+      <span class="sad-overlay__twisty"${row.hasChildren ? ` data-sad-overlay-toggle="${escapeHtml2(row.key)}"` : ""}>${twisty}</span>
+      <span class="sad-overlay__body">
+        <span class="sad-overlay__title">${escapeHtml2(row.title)}</span>
+        ${sub}
+      </span>
+      ${badge}
+    </button>`;
+    }).join("");
     const active = this.list.querySelector(".is-active");
+    if (this.scrollToCurrent) {
+      const current = this.list.querySelector(".is-current");
+      this.scrollToCurrent = false;
+      if (current && typeof current.scrollIntoView === "function") {
+        current.scrollIntoView({ block: "center" });
+        return;
+      }
+    }
     if (active && typeof active.scrollIntoView === "function") {
       active.scrollIntoView({ block: "nearest" });
     }
+  }
+  toggle(key) {
+    const target = text(key);
+    if (!target) {
+      return;
+    }
+    if (this.expanded.has(target)) {
+      this.expanded.delete(target);
+    } else {
+      this.expanded.add(target);
+    }
+    if (this.query.trim()) {
+      this.query = "";
+      if (this.input) {
+        this.input.value = "";
+      }
+    }
+    this.applyFilter();
   }
   move(delta) {
     if (!this.visible.length) {
@@ -2223,13 +2511,26 @@ var DirectoryOverlay = class {
     this.activeIndex = Math.max(0, Math.min(this.visible.length - 1, next));
     this.renderList();
   }
+  expandActive(expand) {
+    const row = this.visible[this.activeIndex];
+    if (!row) {
+      return;
+    }
+    if (expand && row.hasChildren && !row.expanded) {
+      this.toggle(row.key);
+      return;
+    }
+    if (!expand && row.expanded) {
+      this.toggle(row.key);
+    }
+  }
   pick(id) {
-    const target = this.visible.find((row) => row.id === id) || this.rows.find((row) => row.id === id);
+    const target = text(id);
     if (!target) {
       return;
     }
     this.close();
-    this.plugin.openDocument(target.id);
+    this.plugin.openDocument(target);
   }
   onKeydown(event) {
     if (!this.isOpen) {
@@ -2250,13 +2551,30 @@ var DirectoryOverlay = class {
       this.move(event.key === "ArrowDown" ? 1 : -1);
       return;
     }
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      event.stopPropagation();
+      this.expandActive(true);
+      return;
+    }
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      event.stopPropagation();
+      this.expandActive(false);
+      return;
+    }
     if (event.key === "Enter") {
       event.preventDefault();
       event.stopPropagation();
       const row = this.visible[this.activeIndex];
-      if (row) {
-        this.pick(row.id);
+      if (!row) {
+        return;
       }
+      if (row.isNotebook) {
+        this.toggle(row.key);
+        return;
+      }
+      this.pick(row.id);
     }
   }
   close() {
@@ -2270,6 +2588,8 @@ var DirectoryOverlay = class {
     this.scope = null;
     this.visible = [];
     this.rows = [];
+    this.forest = [];
+    this.expanded = /* @__PURE__ */ new Set();
     this.context = null;
     if (this.previousFocus && typeof this.previousFocus.focus === "function" && this.previousFocus.isConnected) {
       this.previousFocus.focus();
@@ -2291,6 +2611,8 @@ var AutoDirectoryPlugin = class extends import_siyuan5.Plugin {
     this.protyles = /* @__PURE__ */ new Set();
     this.navigationStacks = /* @__PURE__ */ new Map();
     this.overlay = null;
+    this.workspaceForest = null;
+    this.workspaceForestAt = 0;
     this.onProtyleEvent = this.onProtyleEvent.bind(this);
     this.onWsMain = this.onWsMain.bind(this);
     this.onGlobalKeydown = this.onGlobalKeydown.bind(this);
@@ -2380,6 +2702,8 @@ var AutoDirectoryPlugin = class extends import_siyuan5.Plugin {
     if (!detail || !WS_COMMANDS.has(detail.cmd)) {
       return;
     }
+    this.workspaceForest = null;
+    this.workspaceForestAt = 0;
     const delay = detail.cmd === "transactions" ? 650 : 140;
     this.protyles.forEach((protyle) => {
       const element = protyle && protyle.element;
@@ -2793,15 +3117,27 @@ var AutoDirectoryPlugin = class extends import_siyuan5.Plugin {
     const visible = protyles.filter((protyle) => typeof protyle.element.getClientRects !== "function" || protyle.element.getClientRects().length > 0);
     return visible[0] || protyles[0];
   }
+  async loadWorkspaceForest() {
+    const now = Date.now();
+    if (this.workspaceForest && now - this.workspaceForestAt < 3e3) {
+      return this.workspaceForest;
+    }
+    const [rows, notebooks] = await Promise.all([
+      queryWorkspaceDocRows(),
+      listNotebooks().catch((error) => {
+        console.warn("[siyuan-auto-directory] \u8BFB\u53D6\u7B14\u8BB0\u672C\u5217\u8868\u5931\u8D25", error);
+        return [];
+      })
+    ]);
+    const forest = buildWorkspaceForest(rows, notebooks);
+    this.workspaceForest = forest;
+    this.workspaceForestAt = now;
+    return forest;
+  }
   async openQuickDirectory() {
     const protyle = this.activeProtyle();
     if (!protyle) {
       (0, import_siyuan5.showMessage)("\u6CA1\u6709\u627E\u5230\u53EF\u7528\u7684\u7F16\u8F91\u5668");
-      return;
-    }
-    const panel = this.panels.get(protyle);
-    if (panel && panel.tree) {
-      this.overlay.open(panel.context, panel.tree);
       return;
     }
     const context = await this.resolveContext(protyle);
@@ -2809,14 +3145,20 @@ var AutoDirectoryPlugin = class extends import_siyuan5.Plugin {
       (0, import_siyuan5.showMessage)("\u65E0\u6CD5\u786E\u5B9A\u5F53\u524D\u6587\u6863");
       return;
     }
-    this.overlay.open(context, null);
+    if (!this.overlay) {
+      return;
+    }
+    this.overlay.open(context);
     try {
-      const loaded = await this.loadTree(context, protyle);
-      if (this.overlay && this.overlay.isOpen && this.overlay.context && this.overlay.context.id === context.id) {
-        this.overlay.setTree(loaded.tree);
+      const forest = await this.loadWorkspaceForest();
+      if (this.overlay && this.overlay.isOpen) {
+        this.overlay.setWorkspace(forest, context.id);
       }
     } catch (error) {
       console.warn("[siyuan-auto-directory] \u52A0\u8F7D\u5FEB\u901F\u76EE\u5F55\u5931\u8D25", error);
+      if (this.overlay && this.overlay.isOpen) {
+        this.overlay.showError("\u52A0\u8F7D\u5DE5\u4F5C\u7A7A\u95F4\u76EE\u5F55\u5931\u8D25\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5");
+      }
     }
   }
   openDocument(id, options = {}) {

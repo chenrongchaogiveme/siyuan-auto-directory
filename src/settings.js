@@ -14,6 +14,11 @@ export function openSettingsDialog(config, saveConfig, reloadPanels) {
     <input class="b3-text-field fn__block" id="sad-expanded-depth" type="number" min="0" max="50" value="${config.defaultExpandedDepth}">
   </label>
   <div class="sad-settings__divider"></div>
+  <div class="sad-settings__field">
+    <span class="sad-settings__label">快速目录快捷键</span>
+    <span class="sad-settings__hint">默认 Ctrl+Alt+D。可在「思源设置 → 快捷键」搜索“快速目录”自定义；快捷键由思源统一管理，避免与其它命令冲突。</span>
+  </div>
+  <div class="sad-settings__divider"></div>
   <label class="sad-settings__toggle">
     <span class="sad-settings__toggle-text">
       <span class="sad-settings__label">默认展开目录</span>
@@ -67,6 +72,7 @@ export function openSettingsDialog(config, saveConfig, reloadPanels) {
     有子文档或正文引用文档时自动显示，不再区分空白文档。<br>
     点击标题右侧的图钉可置顶当前层级，置顶状态会自动保存。<br>
     标题栏的排序下拉只影响当前目录显示，切回“文档树顺序”或切换文档即恢复。<br>
+    快速目录显示整个工作空间，并自动展开、定位当前文档；搜索时用面包屑区分同名文档。<br>
     目录是阅读辅助浮层，不会写入正文；旧版目录块可在面板顶部清理。
   </div>
 </div>

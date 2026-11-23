@@ -64,6 +64,21 @@ export async function queryTreeRows(notebook, hpath, path, rootId, includeAll = 
     return rows;
 }
 
+export async function queryWorkspaceDocRows() {
+    const rows = await readPost("/api/query/sql", {
+        stmt: `SELECT id, box, hpath, path, content, created, updated, sort FROM blocks WHERE type = 'd' ORDER BY box, hpath ASC LIMIT 20000`,
+    });
+    if (!Array.isArray(rows)) {
+        throw new Error("SQL 返回格式异常");
+    }
+    return rows;
+}
+
+export async function listNotebooks() {
+    const data = await readPost("/api/notebook/lsNotebooks", {});
+    return data && Array.isArray(data.notebooks) ? data.notebooks : [];
+}
+
 export async function queryReferenceRows(sourceIds) {
     const unique = Array.from(new Set((sourceIds || []).filter(Boolean)));
     if (!unique.length) {
