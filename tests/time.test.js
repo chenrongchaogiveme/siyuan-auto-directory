@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {formatDateTime} from "../src/time.js";
+import {formatDateTime, timestampValue} from "../src/time.js";
 
 test("formatDateTime formats compact SiYuan timestamps", () => {
     assert.equal(formatDateTime("20261117091200"), "2026-11-17 09:12");
@@ -18,4 +18,9 @@ test("formatDateTime formats millisecond timestamps", () => {
 test("formatDateTime ignores empty or invalid values", () => {
     assert.equal(formatDateTime(""), "");
     assert.equal(formatDateTime("not-a-time"), "");
+});
+test("timestampValue compares compact and separated times numerically", () => {
+    assert.ok(timestampValue("20261117091200") < timestampValue("20261118091200"));
+    assert.ok(timestampValue("2026-11-17 09:12:00") < timestampValue("2026-11-17 10:12:00"));
+    assert.equal(Number.isFinite(timestampValue("not-a-time")), false);
 });

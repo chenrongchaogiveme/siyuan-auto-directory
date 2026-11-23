@@ -6,7 +6,7 @@ import { removeLegacyBlocks } from "./legacy.js";
 import { showMoveConfirm } from "./move-dialog.js";
 import { markSelectionOnElement, renderPanelHtml } from "./renderer.js";
 import { allSelectableIds, pruneSelection, selectedNodes, setSelected } from "./selection.js";
-import { canMoveNode, findNode, signature } from "./tree.js";
+import { applySortMode, canMoveNode, findNode, normalizeSort, signature } from "./tree.js";
 
 function panelElement(protyle) {
     const content = contentElement(protyle);
@@ -40,6 +40,8 @@ export class DirectoryPanel {
         this.hiddenLegacyElements = new Set();
         this.seeded = false;
         this.signature = "";
+        this.sortMode = "tree";
+        this.sortDirection = "asc";
         this.destroyed = false;
         this.observer = null;
         this.observerContent = null;
@@ -95,6 +97,7 @@ export class DirectoryPanel {
             ? this.navigation.trail.map((entry) => text(entry && entry.id)).join(",")
             : "";
         return signature(this.tree, this.context, this.config) +
+            "|sort:" + this.sortMode + ":" + this.sortDirection +
             "|nav:" + trail +
             "|legacy:" + Array.from(this.legacyIds).sort().join(",");
     }
@@ -107,6 +110,8 @@ export class DirectoryPanel {
             this.selection.clear();
             this.seeded = false;
             this.signature = "";
+            this.sortMode = "tree";
+            this.sortDirection = "asc";
         }
         if (this.config.defaultExpandedDepth !== config.defaultExpandedDepth) {
             this.seeded = false;
@@ -120,6 +125,7 @@ export class DirectoryPanel {
         this.context = context;
         this.element.setAttribute("data-sad-root", context.id);
         this.tree = tree;
+        applySortMode(this.tree, this.sortMode, this.sortDirection);
         this.navigation = this.plugin.navigationFor(context.id);
         this.config = config;
         this.legacyIds = new Set(legacyIds);
@@ -198,6 +204,7 @@ export class DirectoryPanel {
         this.element.classList.remove("is-loading");
         this.element.removeAttribute("aria-busy");
         this.ensurePlacement();
+        applySortMode(this.tree, this.sortMode, this.sortDirection);
         this.element.innerHTML = renderPanelHtml(this.tree, this, this.config, Array.from(this.legacyIds));
         markSelectionOnElement(this.element, this.selection, allSelectableIds(this.tree));
         this.syncLegacyVisibility();
@@ -444,6 +451,13 @@ export class DirectoryPanel {
         }
         const targetId = row.getAttribute("data-sad-row");
         const position = this.dropPositionForEvent(row, event);
+        if (this.sortMode !== "tree" && position !== "inside") {
+            this.updateDropTarget(null);
+            if (event.dataTransfer) {
+                event.dataTransfer.dropEffect = "none";
+            }
+            return;
+        }
         if (!canMoveNode(this.tree, this.dragSourceId, targetId)) {
             this.updateDropTarget(null);
             if (event.dataTransfer) {
@@ -477,6 +491,10 @@ export class DirectoryPanel {
         const sourceId = this.dragSourceId;
         const position = this.dropPosition;
         const targetId = row.getAttribute("data-sad-row");
+        if (this.sortMode !== "tree" && position !== "inside") {
+            this.clearDragState();
+            return;
+        }
         if (!position || !canMoveNode(this.tree, sourceId, targetId)) {
             this.clearDragState();
             return;
@@ -551,6 +569,16 @@ export class DirectoryPanel {
     onChange(event) {
         const input = event.target;
         if (!input || !input.matches) {
+            return;
+        }
+        if (input.matches("[data-sad-sort]")) {
+            const [mode, direction] = text(input.value).split(":");
+            const next = normalizeSort(mode, direction);
+            this.sortMode = next.mode;
+            this.sortDirection = next.direction;
+            this.signature = "";
+            this.render();
+            this.signature = this.currentSignature();
             return;
         }
         if (input.matches("[data-sad-select-all]")) {

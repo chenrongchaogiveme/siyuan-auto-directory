@@ -1,5 +1,6 @@
 import { hashString, text } from "./dom.js";
 import { isRowInScope } from "./sql.js";
+import { timestampValue } from "./time.js";
 
 export function normalizePath(value) {
     const path = text(value).replace(/\\/g, "/").replace(/\/+/g, "/");
@@ -92,27 +93,98 @@ export function buildTree(rows, rootId, rootHPath, rootPath = "", includeAll = f
     return root;
 }
 
-export function sortTree(node) {
-    node.children.sort((left, right) => {
-        const leftPinned = left.pinned === true;
-        const rightPinned = right.pinned === true;
-        if (leftPinned !== rightPinned) {
-            return leftPinned ? -1 : 1;
-        }
-        if (Number.isFinite(left.order) && Number.isFinite(right.order)) {
-            return left.order - right.order;
-        }
-        if (Number.isFinite(left.order) !== Number.isFinite(right.order)) {
-            return Number.isFinite(left.order) ? -1 : 1;
-        }
-        const leftKey = left.external ? "~" + left.title : (left.hpath || left.title);
-        const rightKey = right.external ? "~" + right.title : (right.hpath || right.title);
-        return leftKey.localeCompare(rightKey, "zh", {
+const SORT_MODES = new Set(["tree", "title", "created", "updated"]);
+
+export function normalizeSort(mode, direction) {
+    return {
+        mode: SORT_MODES.has(mode) ? mode : "tree",
+        direction: direction === "desc" ? "desc" : "asc",
+    };
+}
+
+function comparePinned(left, right) {
+    const leftPinned = left.pinned === true;
+    const rightPinned = right.pinned === true;
+    if (leftPinned === rightPinned) {
+        return 0;
+    }
+    return leftPinned ? -1 : 1;
+}
+
+function compareDefault(left, right) {
+    if (Number.isFinite(left.order) && Number.isFinite(right.order)) {
+        return left.order - right.order;
+    }
+    if (Number.isFinite(left.order) !== Number.isFinite(right.order)) {
+        return Number.isFinite(left.order) ? -1 : 1;
+    }
+    const leftKey = left.external ? "~" + left.title : (left.hpath || left.title);
+    const rightKey = right.external ? "~" + right.title : (right.hpath || right.title);
+    return leftKey.localeCompare(rightKey, "zh", {
+        numeric: true,
+        sensitivity: "base",
+    });
+}
+
+function compareTime(left, right, key, direction) {
+    const leftTime = timestampValue(left[key]);
+    const rightTime = timestampValue(right[key]);
+    const leftValid = Number.isFinite(leftTime);
+    const rightValid = Number.isFinite(rightTime);
+    if (!leftValid && !rightValid) {
+        return 0;
+    }
+    if (!leftValid) {
+        return 1;
+    }
+    if (!rightValid) {
+        return -1;
+    }
+    return direction === "desc" ? rightTime - leftTime : leftTime - rightTime;
+}
+
+function compareByMode(left, right, mode, direction) {
+    if (mode === "title") {
+        const result = left.title.localeCompare(right.title, "zh", {
             numeric: true,
             sensitivity: "base",
         });
+        return direction === "desc" ? -result : result;
+    }
+    if (mode === "created") {
+        return compareTime(left, right, "created", direction);
+    }
+    if (mode === "updated") {
+        return compareTime(left, right, "updated", direction);
+    }
+    return 0;
+}
+
+export function sortTree(node, options = {}) {
+    const {mode, direction} = normalizeSort(options.mode, options.direction);
+    node.children.sort((left, right) => {
+        const pinned = comparePinned(left, right);
+        if (pinned !== 0) {
+            return pinned;
+        }
+        if (mode !== "tree") {
+            const sorted = compareByMode(left, right, mode, direction);
+            if (sorted !== 0) {
+                return sorted;
+            }
+        }
+        return compareDefault(left, right);
     });
-    node.children.forEach(sortTree);
+    node.children.forEach((child) => sortTree(child, {mode, direction}));
+}
+
+export function applySortMode(tree, mode = "tree", direction = "asc") {
+    if (!tree) {
+        return tree;
+    }
+    const normalized = normalizeSort(mode, direction);
+    sortTree(tree, normalized);
+    return tree;
 }
 
 export function referenceSource(source) {
@@ -367,6 +439,7 @@ export function signature(tree, context, config) {
         config.autoExpand,
         config.showChildCount,
         config.showReferencedDocs,
+        config.hideIndexedReferences,
         config.showDocumentTags,
         config.showCreatedTime,
         config.showUpdatedTime,

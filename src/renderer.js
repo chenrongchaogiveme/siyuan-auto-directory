@@ -6,6 +6,30 @@ import { countNodes } from "./tree.js";
 
 const INLINE_REFERENCE_LIMIT = 2;
 
+const SORT_OPTIONS = [
+    {value: "tree", label: "文档树顺序"},
+    {value: "updated:desc", label: "最新修改"},
+    {value: "updated:asc", label: "最早修改"},
+    {value: "created:desc", label: "最新创建"},
+    {value: "created:asc", label: "最早创建"},
+    {value: "title:asc", label: "名称 A→Z"},
+    {value: "title:desc", label: "名称 Z→A"},
+];
+
+function sortSelectValue(state) {
+    const mode = state && typeof state.sortMode === "string" ? state.sortMode : "tree";
+    if (mode === "tree") {
+        return "tree";
+    }
+    const direction = state && state.sortDirection === "desc" ? "desc" : "asc";
+    return `${mode}:${direction}`;
+}
+
+function renderSortSelect(state) {
+    const value = sortSelectValue(state);
+    return `<select class="siyuan-auto-directory__sort" data-sad-sort title="排序方式（仅影响当前目录显示）" aria-label="目录排序方式">${SORT_OPTIONS.map((option) => `<option value="${option.value}"${option.value === value ? " selected" : ""}>${option.label}</option>`).join("")}</select>`;
+}
+
 function childLimit(node, depth, config) {
     if (config.maxDepth > 0 && depth + 1 >= config.maxDepth) {
         return [];
@@ -13,10 +37,14 @@ function childLimit(node, depth, config) {
     return node.children || [];
 }
 
-function referencedCount(tree) {
+function referencedCount(tree, hideIndexed = false) {
     let count = 0;
     const visit = (node) => {
-        count += (node.references || []).length;
+        (node.references || []).forEach((reference) => {
+            if (!hideIndexed || reference.external) {
+                count += 1;
+            }
+        });
         (node.children || []).forEach(visit);
     };
     visit(tree);
@@ -70,12 +98,11 @@ function renderReferenceLine(state, key, label, references) {
     </span>`;
 }
 
-function renderInlineReferences(node, state, label = "引用了") {
-    const references = node.references || [];
+function renderInlineReferences(references, sourceId, state, label = "引用了") {
     if (!references.length) {
         return "";
     }
-    return renderReferenceLine(state, referenceKey("out", node.id), label, references);
+    return renderReferenceLine(state, referenceKey("out", sourceId), label, references);
 }
 
 function renderNavigation(tree, state) {
@@ -138,7 +165,10 @@ function renderNode(node, depth, state, config) {
             ? `<span class="siyuan-auto-directory__badge siyuan-auto-directory__badge--external" title="当前文档引用了树外文档">外部引用</span>`
             : `<span class="siyuan-auto-directory__badge" title="其他目录笔记引用了这个文档">被引用</span>`
         : "";
-    const inlineReferences = references.length ? renderInlineReferences(node, state) : "";
+    const visibleReferences = config.hideIndexedReferences !== false
+        ? references.filter((reference) => reference.external)
+        : references;
+    const inlineReferences = visibleReferences.length ? renderInlineReferences(visibleReferences, node.id, state) : "";
     const createdTime = formatDateTime(node.created);
     const updatedTime = formatDateTime(node.updated);
     const createdText = createdTime ? `创建 ${createdTime}` : "";
@@ -148,6 +178,10 @@ function renderNode(node, depth, state, config) {
     const showUpdatedTime = config.showUpdatedTime !== false && updatedText;
     const openTitle = `打开：${node.title}${timeDetail ? `\n${timeDetail}` : ""}`;
     const draggable = !node.external;
+    const autoSorted = state.sortMode && state.sortMode !== "tree";
+    const dragHint = autoSorted
+        ? "拖到行中间成为子文档；自动排序下暂停同级拖拽"
+        : "拖到行上/下缘同级排序，拖到行中间成为子文档";
     const branch = expanded
         ? `<div class="siyuan-auto-directory__branch" data-sad-branch="${escapeHtml(node.id)}">${renderRows(children, depth + 1, state, config, node.id)}</div>`
         : "";
@@ -158,7 +192,7 @@ function renderNode(node, depth, state, config) {
         : `<span class="siyuan-auto-directory__toggle" aria-hidden="true"></span>`;
 
     return `<div class="siyuan-auto-directory__node" data-sad-node="${escapeHtml(node.id)}" data-sad-depth="${depth}">
-  <div class="siyuan-auto-directory__row${selected ? " is-selected" : ""}${node.external ? " is-external" : ""}${pinned ? " is-pinned" : ""}" data-sad-row="${escapeHtml(node.id)}" draggable="${draggable}" data-sad-draggable="${draggable}"${draggable ? ' title="拖到行上/下缘同级排序，拖到行中间成为子文档"' : ""}>
+  <div class="siyuan-auto-directory__row${selected ? " is-selected" : ""}${node.external ? " is-external" : ""}${pinned ? " is-pinned" : ""}" data-sad-row="${escapeHtml(node.id)}" draggable="${draggable}" data-sad-draggable="${draggable}"${draggable ? ` title="${escapeHtml(dragHint)}"` : ""}>
     <label class="siyuan-auto-directory__check" title="选择：${escapeHtml(node.title)}">
       <input type="checkbox" data-sad-select="${escapeHtml(node.id)}" ${selected ? "checked" : ""} aria-label="选择：${escapeHtml(node.title)}">
     </label>
@@ -189,7 +223,7 @@ export function renderPanelHtml(tree, state, config, legacyIds = []) {
     const showRefs = config.showReferencedDocs !== false;
     const selectable = allSelectableIds(tree);
     const allChecked = selectable.length > 0 && selectable.every((id) => state.selection.has(id));
-    const refs = showRefs ? referencedCount(tree) : 0;
+    const refs = showRefs ? referencedCount(tree, config.hideIndexedReferences !== false) : 0;
     const scope = config.maxDepth > 0 ? ` · 最多 ${config.maxDepth} 层` : "";
     const refText = refs ? ` · 引用 ${refs} 篇` : "";
     const sourceText = showRefs ? "真实子文档层级 + 逐篇引用" : "真实子文档层级";
@@ -201,6 +235,9 @@ export function renderPanelHtml(tree, state, config, legacyIds = []) {
 </div>`
         : "";
     const deleteLabel = selected ? `删除选中 (${selected})` : "删除选中";
+    const sortHint = state.sortMode && state.sortMode !== "tree"
+        ? "当前为临时排序，切回“文档树顺序”即可恢复"
+        : "点击图钉置顶 · 拖到行上/下缘同级排序，拖到行中间成为子文档";
     return `<div class="siyuan-auto-directory__header">
   <label class="siyuan-auto-directory__select-all" title="全选当前目录">
     <input type="checkbox" data-sad-select-all ${allChecked ? "checked" : ""} ${selectable.length ? "" : "disabled"} aria-label="全选当前目录">
@@ -211,6 +248,7 @@ export function renderPanelHtml(tree, state, config, legacyIds = []) {
     目录
   </span>
   <span class="siyuan-auto-directory__status">共 ${total} 篇${refText}${scope}</span>
+  ${renderSortSelect(state)}
   <span class="siyuan-auto-directory__actions">
     <button class="siyuan-auto-directory__delete-selected" type="button" data-sad-action="delete-selected" ${selected ? "" : "disabled"}>${deleteLabel}</button>
     <button class="siyuan-auto-directory__action" type="button" data-sad-action="refresh" title="刷新目录" aria-label="刷新目录">
@@ -224,7 +262,7 @@ export function renderPanelHtml(tree, state, config, legacyIds = []) {
 ${renderNavigation(tree, state)}
 ${legacy}
 <div class="siyuan-auto-directory__tree">${renderRows(childNodes, 0, state, config, "__root__")}</div>
-<div class="siyuan-auto-directory__footer">来源：${sourceText} · 不写入正文 · 点击图钉置顶 · 拖到行上/下缘同级排序，拖到行中间成为子文档</div>`;
+<div class="siyuan-auto-directory__footer">来源：${sourceText} · 不写入正文 · ${sortHint}</div>`;
 }
 
 export function markSelectionOnElement(element, selection, allIds = []) {

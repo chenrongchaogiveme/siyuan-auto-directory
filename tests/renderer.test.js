@@ -249,3 +249,53 @@ test("renderer can show created time and hide updated time", () => {
     assert.match(html, /class="siyuan-auto-directory__meta"[^>]*>创建 2026-11-17 09:12</);
     assert.doesNotMatch(html, /class="siyuan-auto-directory__time"/);
 });
+test("renderer exposes a temporary sort selector and drag hint", () => {
+    const model = tree();
+    const state = {expanded: new Set(), selection: new Set(), page: new Map(), sortMode: "tree", sortDirection: "asc"};
+    const config = {maxDepth: 0, defaultExpandedDepth: 4, showChildCount: true, showReferencedDocs: true};
+    const defaultHtml = renderPanelHtml(model, state, config);
+    assert.match(defaultHtml, /data-sad-sort/);
+    assert.match(defaultHtml, /<option value="tree" selected>文档树顺序<\/option>/);
+    assert.match(defaultHtml, /拖到行上\/下缘同级排序，拖到行中间成为子文档/);
+
+    state.sortMode = "updated";
+    state.sortDirection = "desc";
+    const sortedHtml = renderPanelHtml(model, state, config);
+    assert.match(sortedHtml, /<option value="updated:desc" selected>最新修改<\/option>/);
+    assert.match(sortedHtml, /自动排序下暂停同级拖拽/);
+    assert.match(sortedHtml, /当前为临时排序，切回“文档树顺序”即可恢复/);
+});
+test("hideIndexedReferences hides inline references already present in the tree", () => {
+    const model = tree();
+    addReference(model, "a", {
+        id: "a1",
+        title: "A1",
+        hpath: "/Root/A/A1",
+        path: "/Root/A/A1.sy",
+    });
+    addReference(model, "a", {
+        id: "outside",
+        title: "Outside",
+        hpath: "/Other",
+        path: "/other.sy",
+    });
+    const state = {expanded: new Set(), referenceExpanded: new Set(), selection: new Set(), page: new Map()};
+    const config = {
+        maxDepth: 0,
+        defaultExpandedDepth: 4,
+        showChildCount: true,
+        showReferencedDocs: true,
+        hideIndexedReferences: true,
+    };
+    const hidden = renderPanelHtml(model, state, config);
+    assert.match(hidden, /引用 1 篇/);
+    assert.match(hidden, /data-sad-open="outside"/);
+    assert.match(hidden, /\/Other/);
+    assert.doesNotMatch(hidden, /\/Root\/A\/A1/);
+    assert.doesNotMatch(hidden, /data-sad-open="a1"/);
+
+    const shown = renderPanelHtml(model, state, {...config, hideIndexedReferences: false});
+    assert.match(shown, /引用 2 篇/);
+    assert.match(shown, /\/Root\/A\/A1/);
+    assert.match(shown, /data-sad-open="a1"/);
+});

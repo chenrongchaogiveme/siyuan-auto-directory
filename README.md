@@ -24,11 +24,13 @@ The plugin renders in the normal DOM above `.protyle-content`. It looks like it 
 
 - Shows the directory whenever the current document has child documents or body references; it is no longer limited to empty documents.
 - Renders the real child-document hierarchy in SiYuan document-tree order. References are attached to the note that contains them instead of being flattened to the top level.
+- Temporarily sort the directory by name, created time, or updated time, ascending or descending, from the panel header. Sorting only changes the current view; choose "Document tree order" to restore SiYuan's order, and it resets automatically when you switch documents.
 - Pin a document to the top of its current level with the pin button next to the title; pinned rows stay above newly added siblings and can be unpinned.
 - Show each document's #tags: a single tag stays on the right side of the row, while multiple tags wrap below the title on the left.
 - Shows the last-updated time on each row. Created time is available in the title tooltip by default and can be shown permanently in settings.
 - Shows up to two referenced-document paths per note by default; click `+N` to expand the rest. Paths open the target document directly.
 - Nodes referenced by another directory note keep only a compact "referenced" badge.
+- Hide inline body references whose target is already shown in the directory tree, so documents created with "create and reference" are not listed twice. References outside the tree remain visible; can be disabled in settings.
 - After opening a child document, the panel shows "Back" and a clickable breadcrumb to return to any parent or the notebook root.
 - Expand/collapse, direct child count, reference badges, and click a title to open a document.
 - Drag to the top or bottom edge of a row to reorder siblings; drag to the middle to move into a target child document.
@@ -95,19 +97,28 @@ Open settings from the list icon on the right side of the top bar:
 - Show created time (when off, it remains in the title tooltip)
 - Show document tags (single tags on the right; multiple tags wrap below the title)
 - Show documents referenced in the body (when off, only real child documents are shown)
+- Hide references already in the directory tree (inline references to documents already shown as children are omitted; external references stay)
 - Confirm before moving (when off, drag-and-drop moves run immediately; you can also disable the prompt in the first move dialog)
 
 The old "only show in empty documents" option has been removed.
+
+Temporary sorting is controlled from the panel header and is not saved as a setting.
 
 ## Known limitations
 
 - The directory is a reading aid overlay. It is not exported to Markdown or PDF and is not written into the document.
 - References are read from SiYuan's `refs` index first, which covers notes inside the directory. If the index is temporarily unavailable, it falls back to the current editor DOM.
 - If a sibling position conflicts with SiYuan's custom sorting, the plugin asks you to adjust the document-tree sorting rule instead of silently clearing your custom order.
+- Temporary sorting is view-only and resets when you switch documents; it does not reorder the SiYuan document tree.
 
 ## Changelog
 
 Newest version first.
+
+### 1.2.0
+
+- Added: temporary sorting from the panel header by name, created time, or updated time, ascending or descending. Pinned documents stay on top, and choosing "Document tree order" restores SiYuan's order. The sort resets when you switch documents and never reorders the real document tree.
+- Added: hide inline references whose target is already shown in the directory tree, so "create and reference" child documents are not listed twice. External references remain visible and the option can be turned off.
 
 ### 1.1.0
 

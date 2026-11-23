@@ -29,6 +29,7 @@ var init_constants = __esm({
       autoExpand: true,
       showChildCount: true,
       showReferencedDocs: true,
+      hideIndexedReferences: true,
       showDocumentTags: true,
       showCreatedTime: false,
       showUpdatedTime: true,
@@ -68,6 +69,7 @@ function normalizeConfig(input) {
     autoExpand: source.autoExpand !== false,
     showChildCount: source.showChildCount !== false,
     showReferencedDocs: source.showReferencedDocs !== false,
+    hideIndexedReferences: source.hideIndexedReferences !== false,
     showDocumentTags: source.showDocumentTags !== false,
     showCreatedTime: source.showCreatedTime === true,
     showUpdatedTime: source.showUpdatedTime !== false,
@@ -135,6 +137,13 @@ function openSettingsDialog(config, saveConfig, reloadPanels) {
   </label>
   <label class="sad-settings__toggle">
     <span class="sad-settings__toggle-text">
+      <span class="sad-settings__label">\u9690\u85CF\u76EE\u5F55\u5185\u5F15\u7528</span>
+      <span class="sad-settings__hint">\u5F00\u542F\u540E\uFF0C\u6B63\u6587\u5F15\u7528\u4E2D\u6307\u5411\u5F53\u524D\u76EE\u5F55\u5DF2\u6709\u6587\u6863\u7684\u6761\u76EE\u4E0D\u518D\u884C\u5185\u91CD\u590D\u663E\u793A\uFF1B\u6307\u5411\u76EE\u5F55\u5916\u6587\u6863\u7684\u5F15\u7528\u4ECD\u4FDD\u7559\u3002</span>
+    </span>
+    <input id="sad-hide-indexed-references" type="checkbox" class="b3-switch" ${config.hideIndexedReferences !== false ? "checked" : ""}>
+  </label>
+  <label class="sad-settings__toggle">
+    <span class="sad-settings__toggle-text">
       <span class="sad-settings__label">\u663E\u793A\u6587\u6863\u6807\u7B7E</span>
       <span class="sad-settings__hint">\u5728\u76EE\u5F55\u884C\u5C55\u793A\u6587\u6863\u5185\u4F7F\u7528\u7684 #\u6807\u7B7E#\uFF1B\u5355\u6807\u7B7E\u9760\u53F3\u663E\u793A\uFF0C\u591A\u4E2A\u6807\u7B7E\u5728\u6807\u9898\u4E0B\u65B9\u5DE6\u4FA7\u6362\u884C\u5C55\u793A\u3002</span>
     </span>
@@ -150,6 +159,7 @@ function openSettingsDialog(config, saveConfig, reloadPanels) {
   <div class="sad-settings__note">
     \u6709\u5B50\u6587\u6863\u6216\u6B63\u6587\u5F15\u7528\u6587\u6863\u65F6\u81EA\u52A8\u663E\u793A\uFF0C\u4E0D\u518D\u533A\u5206\u7A7A\u767D\u6587\u6863\u3002<br>
     \u70B9\u51FB\u6807\u9898\u53F3\u4FA7\u7684\u56FE\u9489\u53EF\u7F6E\u9876\u5F53\u524D\u5C42\u7EA7\uFF0C\u7F6E\u9876\u72B6\u6001\u4F1A\u81EA\u52A8\u4FDD\u5B58\u3002<br>
+    \u6807\u9898\u680F\u7684\u6392\u5E8F\u4E0B\u62C9\u53EA\u5F71\u54CD\u5F53\u524D\u76EE\u5F55\u663E\u793A\uFF0C\u5207\u56DE\u201C\u6587\u6863\u6811\u987A\u5E8F\u201D\u6216\u5207\u6362\u6587\u6863\u5373\u6062\u590D\u3002<br>
     \u76EE\u5F55\u662F\u9605\u8BFB\u8F85\u52A9\u6D6E\u5C42\uFF0C\u4E0D\u4F1A\u5199\u5165\u6B63\u6587\uFF1B\u65E7\u7248\u76EE\u5F55\u5757\u53EF\u5728\u9762\u677F\u9876\u90E8\u6E05\u7406\u3002
   </div>
 </div>
@@ -209,6 +219,7 @@ function openSettingsDialog(config, saveConfig, reloadPanels) {
     const updatedTime = dialog.element.querySelector("#sad-show-updated-time");
     const createdTime = dialog.element.querySelector("#sad-show-created-time");
     const references = dialog.element.querySelector("#sad-show-references");
+    const hideIndexedReferences = dialog.element.querySelector("#sad-hide-indexed-references");
     const tags = dialog.element.querySelector("#sad-show-tags");
     const moveConfirm = dialog.element.querySelector("#sad-confirm-move");
     const next = normalizeConfig({
@@ -219,6 +230,7 @@ function openSettingsDialog(config, saveConfig, reloadPanels) {
       showUpdatedTime: updatedTime ? updatedTime.checked : config.showUpdatedTime,
       showCreatedTime: createdTime ? createdTime.checked : config.showCreatedTime,
       showReferencedDocs: references ? references.checked : config.showReferencedDocs,
+      hideIndexedReferences: hideIndexedReferences ? hideIndexedReferences.checked : config.hideIndexedReferences,
       showDocumentTags: tags ? tags.checked : config.showDocumentTags,
       confirmMove: moveConfirm ? moveConfirm.checked : config.confirmMove
     });
@@ -705,6 +717,10 @@ function parseDateTime(value) {
   const timestamp = Date.parse(raw);
   return Number.isNaN(timestamp) ? null : new Date(timestamp);
 }
+function timestampValue(value) {
+  const date = parseDateTime(value);
+  return date ? date.getTime() : NaN;
+}
 function formatDateTime(value) {
   const date = parseDateTime(value);
   if (!date || Number.isNaN(date.getTime())) {
@@ -795,27 +811,91 @@ function buildTree(rows, rootId, rootHPath, rootPath = "", includeAll = false) {
   sortTree(root);
   return root;
 }
-function sortTree(node) {
-  node.children.sort((left, right) => {
-    const leftPinned = left.pinned === true;
-    const rightPinned = right.pinned === true;
-    if (leftPinned !== rightPinned) {
-      return leftPinned ? -1 : 1;
-    }
-    if (Number.isFinite(left.order) && Number.isFinite(right.order)) {
-      return left.order - right.order;
-    }
-    if (Number.isFinite(left.order) !== Number.isFinite(right.order)) {
-      return Number.isFinite(left.order) ? -1 : 1;
-    }
-    const leftKey = left.external ? "~" + left.title : left.hpath || left.title;
-    const rightKey = right.external ? "~" + right.title : right.hpath || right.title;
-    return leftKey.localeCompare(rightKey, "zh", {
+var SORT_MODES = /* @__PURE__ */ new Set(["tree", "title", "created", "updated"]);
+function normalizeSort(mode, direction) {
+  return {
+    mode: SORT_MODES.has(mode) ? mode : "tree",
+    direction: direction === "desc" ? "desc" : "asc"
+  };
+}
+function comparePinned(left, right) {
+  const leftPinned = left.pinned === true;
+  const rightPinned = right.pinned === true;
+  if (leftPinned === rightPinned) {
+    return 0;
+  }
+  return leftPinned ? -1 : 1;
+}
+function compareDefault(left, right) {
+  if (Number.isFinite(left.order) && Number.isFinite(right.order)) {
+    return left.order - right.order;
+  }
+  if (Number.isFinite(left.order) !== Number.isFinite(right.order)) {
+    return Number.isFinite(left.order) ? -1 : 1;
+  }
+  const leftKey = left.external ? "~" + left.title : left.hpath || left.title;
+  const rightKey = right.external ? "~" + right.title : right.hpath || right.title;
+  return leftKey.localeCompare(rightKey, "zh", {
+    numeric: true,
+    sensitivity: "base"
+  });
+}
+function compareTime(left, right, key, direction) {
+  const leftTime = timestampValue(left[key]);
+  const rightTime = timestampValue(right[key]);
+  const leftValid = Number.isFinite(leftTime);
+  const rightValid = Number.isFinite(rightTime);
+  if (!leftValid && !rightValid) {
+    return 0;
+  }
+  if (!leftValid) {
+    return 1;
+  }
+  if (!rightValid) {
+    return -1;
+  }
+  return direction === "desc" ? rightTime - leftTime : leftTime - rightTime;
+}
+function compareByMode(left, right, mode, direction) {
+  if (mode === "title") {
+    const result = left.title.localeCompare(right.title, "zh", {
       numeric: true,
       sensitivity: "base"
     });
+    return direction === "desc" ? -result : result;
+  }
+  if (mode === "created") {
+    return compareTime(left, right, "created", direction);
+  }
+  if (mode === "updated") {
+    return compareTime(left, right, "updated", direction);
+  }
+  return 0;
+}
+function sortTree(node, options = {}) {
+  const { mode, direction } = normalizeSort(options.mode, options.direction);
+  node.children.sort((left, right) => {
+    const pinned = comparePinned(left, right);
+    if (pinned !== 0) {
+      return pinned;
+    }
+    if (mode !== "tree") {
+      const sorted = compareByMode(left, right, mode, direction);
+      if (sorted !== 0) {
+        return sorted;
+      }
+    }
+    return compareDefault(left, right);
   });
-  node.children.forEach(sortTree);
+  node.children.forEach((child) => sortTree(child, { mode, direction }));
+}
+function applySortMode(tree, mode = "tree", direction = "asc") {
+  if (!tree) {
+    return tree;
+  }
+  const normalized = normalizeSort(mode, direction);
+  sortTree(tree, normalized);
+  return tree;
 }
 function referenceSource(source) {
   if (!source || typeof source !== "object") {
@@ -1033,6 +1113,7 @@ function signature(tree, context, config) {
     config.autoExpand,
     config.showChildCount,
     config.showReferencedDocs,
+    config.hideIndexedReferences,
     config.showDocumentTags,
     config.showCreatedTime,
     config.showUpdatedTime,
@@ -1045,16 +1126,41 @@ function hasDirectoryContent(tree) {
 
 // src/renderer.js
 var INLINE_REFERENCE_LIMIT = 2;
+var SORT_OPTIONS = [
+  { value: "tree", label: "\u6587\u6863\u6811\u987A\u5E8F" },
+  { value: "updated:desc", label: "\u6700\u65B0\u4FEE\u6539" },
+  { value: "updated:asc", label: "\u6700\u65E9\u4FEE\u6539" },
+  { value: "created:desc", label: "\u6700\u65B0\u521B\u5EFA" },
+  { value: "created:asc", label: "\u6700\u65E9\u521B\u5EFA" },
+  { value: "title:asc", label: "\u540D\u79F0 A\u2192Z" },
+  { value: "title:desc", label: "\u540D\u79F0 Z\u2192A" }
+];
+function sortSelectValue(state) {
+  const mode = state && typeof state.sortMode === "string" ? state.sortMode : "tree";
+  if (mode === "tree") {
+    return "tree";
+  }
+  const direction = state && state.sortDirection === "desc" ? "desc" : "asc";
+  return `${mode}:${direction}`;
+}
+function renderSortSelect(state) {
+  const value = sortSelectValue(state);
+  return `<select class="siyuan-auto-directory__sort" data-sad-sort title="\u6392\u5E8F\u65B9\u5F0F\uFF08\u4EC5\u5F71\u54CD\u5F53\u524D\u76EE\u5F55\u663E\u793A\uFF09" aria-label="\u76EE\u5F55\u6392\u5E8F\u65B9\u5F0F">${SORT_OPTIONS.map((option) => `<option value="${option.value}"${option.value === value ? " selected" : ""}>${option.label}</option>`).join("")}</select>`;
+}
 function childLimit(node, depth, config) {
   if (config.maxDepth > 0 && depth + 1 >= config.maxDepth) {
     return [];
   }
   return node.children || [];
 }
-function referencedCount(tree) {
+function referencedCount(tree, hideIndexed = false) {
   let count = 0;
   const visit = (node) => {
-    count += (node.references || []).length;
+    (node.references || []).forEach((reference) => {
+      if (!hideIndexed || reference.external) {
+        count += 1;
+      }
+    });
     (node.children || []).forEach(visit);
   };
   visit(tree);
@@ -1097,12 +1203,11 @@ function renderReferenceLine(state, key, label, references) {
       ${toggle}
     </span>`;
 }
-function renderInlineReferences(node, state, label = "\u5F15\u7528\u4E86") {
-  const references = node.references || [];
+function renderInlineReferences(references, sourceId, state, label = "\u5F15\u7528\u4E86") {
   if (!references.length) {
     return "";
   }
-  return renderReferenceLine(state, referenceKey("out", node.id), label, references);
+  return renderReferenceLine(state, referenceKey("out", sourceId), label, references);
 }
 function renderNavigation(tree, state) {
   const trail = state.navigation && Array.isArray(state.navigation.trail) ? state.navigation.trail : [];
@@ -1152,7 +1257,8 @@ function renderNode(node, depth, state, config) {
   const pinButton = node.external ? "" : `<button class="siyuan-auto-directory__pin${pinned ? " is-active" : ""}" type="button" data-sad-pin="${escapeHtml(node.id)}" aria-pressed="${pinned}" title="${pinned ? "\u53D6\u6D88\u7F6E\u9876" : "\u5728\u5F53\u524D\u5C42\u7EA7\u7F6E\u9876"}" aria-label="${pinned ? "\u53D6\u6D88\u7F6E\u9876" : "\u5728\u5F53\u524D\u5C42\u7EA7\u7F6E\u9876"}\uFF1A${escapeHtml(node.title)}">${PIN_ICON}</button>`;
   const count = config.showChildCount && hasChildren ? `<span class="siyuan-auto-directory__count" title="\u76F4\u63A5\u5B50\u6587\u6863\u6570">${children.length}</span>` : "";
   const badge = showReferencedDocs && node.referenced ? node.external ? `<span class="siyuan-auto-directory__badge siyuan-auto-directory__badge--external" title="\u5F53\u524D\u6587\u6863\u5F15\u7528\u4E86\u6811\u5916\u6587\u6863">\u5916\u90E8\u5F15\u7528</span>` : `<span class="siyuan-auto-directory__badge" title="\u5176\u4ED6\u76EE\u5F55\u7B14\u8BB0\u5F15\u7528\u4E86\u8FD9\u4E2A\u6587\u6863">\u88AB\u5F15\u7528</span>` : "";
-  const inlineReferences = references.length ? renderInlineReferences(node, state) : "";
+  const visibleReferences = config.hideIndexedReferences !== false ? references.filter((reference) => reference.external) : references;
+  const inlineReferences = visibleReferences.length ? renderInlineReferences(visibleReferences, node.id, state) : "";
   const createdTime = formatDateTime(node.created);
   const updatedTime = formatDateTime(node.updated);
   const createdText = createdTime ? `\u521B\u5EFA ${createdTime}` : "";
@@ -1163,12 +1269,14 @@ function renderNode(node, depth, state, config) {
   const openTitle = `\u6253\u5F00\uFF1A${node.title}${timeDetail ? `
 ${timeDetail}` : ""}`;
   const draggable = !node.external;
+  const autoSorted = state.sortMode && state.sortMode !== "tree";
+  const dragHint = autoSorted ? "\u62D6\u5230\u884C\u4E2D\u95F4\u6210\u4E3A\u5B50\u6587\u6863\uFF1B\u81EA\u52A8\u6392\u5E8F\u4E0B\u6682\u505C\u540C\u7EA7\u62D6\u62FD" : "\u62D6\u5230\u884C\u4E0A/\u4E0B\u7F18\u540C\u7EA7\u6392\u5E8F\uFF0C\u62D6\u5230\u884C\u4E2D\u95F4\u6210\u4E3A\u5B50\u6587\u6863";
   const branch = expanded ? `<div class="siyuan-auto-directory__branch" data-sad-branch="${escapeHtml(node.id)}">${renderRows(children, depth + 1, state, config, node.id)}</div>` : "";
   const toggle = hasChildren ? `<button class="siyuan-auto-directory__toggle" type="button" data-sad-toggle="${escapeHtml(node.id)}" aria-expanded="${expanded}" aria-label="${expanded ? "\u6536\u8D77" : "\u5C55\u5F00"}\uFF1A${escapeHtml(node.title)}">
       <svg aria-hidden="true"><use xlink:href="#iconRight"></use></svg>
     </button>` : `<span class="siyuan-auto-directory__toggle" aria-hidden="true"></span>`;
   return `<div class="siyuan-auto-directory__node" data-sad-node="${escapeHtml(node.id)}" data-sad-depth="${depth}">
-  <div class="siyuan-auto-directory__row${selected ? " is-selected" : ""}${node.external ? " is-external" : ""}${pinned ? " is-pinned" : ""}" data-sad-row="${escapeHtml(node.id)}" draggable="${draggable}" data-sad-draggable="${draggable}"${draggable ? ' title="\u62D6\u5230\u884C\u4E0A/\u4E0B\u7F18\u540C\u7EA7\u6392\u5E8F\uFF0C\u62D6\u5230\u884C\u4E2D\u95F4\u6210\u4E3A\u5B50\u6587\u6863"' : ""}>
+  <div class="siyuan-auto-directory__row${selected ? " is-selected" : ""}${node.external ? " is-external" : ""}${pinned ? " is-pinned" : ""}" data-sad-row="${escapeHtml(node.id)}" draggable="${draggable}" data-sad-draggable="${draggable}"${draggable ? ` title="${escapeHtml(dragHint)}"` : ""}>
     <label class="siyuan-auto-directory__check" title="\u9009\u62E9\uFF1A${escapeHtml(node.title)}">
       <input type="checkbox" data-sad-select="${escapeHtml(node.id)}" ${selected ? "checked" : ""} aria-label="\u9009\u62E9\uFF1A${escapeHtml(node.title)}">
     </label>
@@ -1198,7 +1306,7 @@ function renderPanelHtml(tree, state, config, legacyIds = []) {
   const showRefs = config.showReferencedDocs !== false;
   const selectable = allSelectableIds(tree);
   const allChecked = selectable.length > 0 && selectable.every((id) => state.selection.has(id));
-  const refs = showRefs ? referencedCount(tree) : 0;
+  const refs = showRefs ? referencedCount(tree, config.hideIndexedReferences !== false) : 0;
   const scope = config.maxDepth > 0 ? ` \xB7 \u6700\u591A ${config.maxDepth} \u5C42` : "";
   const refText = refs ? ` \xB7 \u5F15\u7528 ${refs} \u7BC7` : "";
   const sourceText = showRefs ? "\u771F\u5B9E\u5B50\u6587\u6863\u5C42\u7EA7 + \u9010\u7BC7\u5F15\u7528" : "\u771F\u5B9E\u5B50\u6587\u6863\u5C42\u7EA7";
@@ -1208,6 +1316,7 @@ function renderPanelHtml(tree, state, config, legacyIds = []) {
   <button type="button" data-sad-action="remove-legacy">\u5220\u9664\u65E7\u5757</button>
 </div>` : "";
   const deleteLabel = selected ? `\u5220\u9664\u9009\u4E2D (${selected})` : "\u5220\u9664\u9009\u4E2D";
+  const sortHint = state.sortMode && state.sortMode !== "tree" ? "\u5F53\u524D\u4E3A\u4E34\u65F6\u6392\u5E8F\uFF0C\u5207\u56DE\u201C\u6587\u6863\u6811\u987A\u5E8F\u201D\u5373\u53EF\u6062\u590D" : "\u70B9\u51FB\u56FE\u9489\u7F6E\u9876 \xB7 \u62D6\u5230\u884C\u4E0A/\u4E0B\u7F18\u540C\u7EA7\u6392\u5E8F\uFF0C\u62D6\u5230\u884C\u4E2D\u95F4\u6210\u4E3A\u5B50\u6587\u6863";
   return `<div class="siyuan-auto-directory__header">
   <label class="siyuan-auto-directory__select-all" title="\u5168\u9009\u5F53\u524D\u76EE\u5F55">
     <input type="checkbox" data-sad-select-all ${allChecked ? "checked" : ""} ${selectable.length ? "" : "disabled"} aria-label="\u5168\u9009\u5F53\u524D\u76EE\u5F55">
@@ -1218,6 +1327,7 @@ function renderPanelHtml(tree, state, config, legacyIds = []) {
     \u76EE\u5F55
   </span>
   <span class="siyuan-auto-directory__status">\u5171 ${total} \u7BC7${refText}${scope}</span>
+  ${renderSortSelect(state)}
   <span class="siyuan-auto-directory__actions">
     <button class="siyuan-auto-directory__delete-selected" type="button" data-sad-action="delete-selected" ${selected ? "" : "disabled"}>${deleteLabel}</button>
     <button class="siyuan-auto-directory__action" type="button" data-sad-action="refresh" title="\u5237\u65B0\u76EE\u5F55" aria-label="\u5237\u65B0\u76EE\u5F55">
@@ -1231,7 +1341,7 @@ function renderPanelHtml(tree, state, config, legacyIds = []) {
 ${renderNavigation(tree, state)}
 ${legacy}
 <div class="siyuan-auto-directory__tree">${renderRows(childNodes, 0, state, config, "__root__")}</div>
-<div class="siyuan-auto-directory__footer">\u6765\u6E90\uFF1A${sourceText} \xB7 \u4E0D\u5199\u5165\u6B63\u6587 \xB7 \u70B9\u51FB\u56FE\u9489\u7F6E\u9876 \xB7 \u62D6\u5230\u884C\u4E0A/\u4E0B\u7F18\u540C\u7EA7\u6392\u5E8F\uFF0C\u62D6\u5230\u884C\u4E2D\u95F4\u6210\u4E3A\u5B50\u6587\u6863</div>`;
+<div class="siyuan-auto-directory__footer">\u6765\u6E90\uFF1A${sourceText} \xB7 \u4E0D\u5199\u5165\u6B63\u6587 \xB7 ${sortHint}</div>`;
 }
 function markSelectionOnElement(element, selection, allIds = []) {
   if (!element) {
@@ -1293,6 +1403,8 @@ var DirectoryPanel = class {
     this.hiddenLegacyElements = /* @__PURE__ */ new Set();
     this.seeded = false;
     this.signature = "";
+    this.sortMode = "tree";
+    this.sortDirection = "asc";
     this.destroyed = false;
     this.observer = null;
     this.observerContent = null;
@@ -1343,7 +1455,7 @@ var DirectoryPanel = class {
   }
   currentSignature() {
     const trail = this.navigation && Array.isArray(this.navigation.trail) ? this.navigation.trail.map((entry) => text(entry && entry.id)).join(",") : "";
-    return signature(this.tree, this.context, this.config) + "|nav:" + trail + "|legacy:" + Array.from(this.legacyIds).sort().join(",");
+    return signature(this.tree, this.context, this.config) + "|sort:" + this.sortMode + ":" + this.sortDirection + "|nav:" + trail + "|legacy:" + Array.from(this.legacyIds).sort().join(",");
   }
   update(context, tree, config, legacyIds = []) {
     if (contextsDiffer(this.context, context)) {
@@ -1353,6 +1465,8 @@ var DirectoryPanel = class {
       this.selection.clear();
       this.seeded = false;
       this.signature = "";
+      this.sortMode = "tree";
+      this.sortDirection = "asc";
     }
     if (this.config.defaultExpandedDepth !== config.defaultExpandedDepth) {
       this.seeded = false;
@@ -1366,6 +1480,7 @@ var DirectoryPanel = class {
     this.context = context;
     this.element.setAttribute("data-sad-root", context.id);
     this.tree = tree;
+    applySortMode(this.tree, this.sortMode, this.sortDirection);
     this.navigation = this.plugin.navigationFor(context.id);
     this.config = config;
     this.legacyIds = new Set(legacyIds);
@@ -1440,6 +1555,7 @@ var DirectoryPanel = class {
     this.element.classList.remove("is-loading");
     this.element.removeAttribute("aria-busy");
     this.ensurePlacement();
+    applySortMode(this.tree, this.sortMode, this.sortDirection);
     this.element.innerHTML = renderPanelHtml(this.tree, this, this.config, Array.from(this.legacyIds));
     markSelectionOnElement(this.element, this.selection, allSelectableIds(this.tree));
     this.syncLegacyVisibility();
@@ -1672,6 +1788,13 @@ var DirectoryPanel = class {
     }
     const targetId = row.getAttribute("data-sad-row");
     const position = this.dropPositionForEvent(row, event);
+    if (this.sortMode !== "tree" && position !== "inside") {
+      this.updateDropTarget(null);
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = "none";
+      }
+      return;
+    }
     if (!canMoveNode(this.tree, this.dragSourceId, targetId)) {
       this.updateDropTarget(null);
       if (event.dataTransfer) {
@@ -1703,6 +1826,10 @@ var DirectoryPanel = class {
     const sourceId = this.dragSourceId;
     const position = this.dropPosition;
     const targetId = row.getAttribute("data-sad-row");
+    if (this.sortMode !== "tree" && position !== "inside") {
+      this.clearDragState();
+      return;
+    }
     if (!position || !canMoveNode(this.tree, sourceId, targetId)) {
       this.clearDragState();
       return;
@@ -1769,6 +1896,16 @@ var DirectoryPanel = class {
   onChange(event) {
     const input = event.target;
     if (!input || !input.matches) {
+      return;
+    }
+    if (input.matches("[data-sad-sort]")) {
+      const [mode, direction] = text(input.value).split(":");
+      const next = normalizeSort(mode, direction);
+      this.sortMode = next.mode;
+      this.sortDirection = next.direction;
+      this.signature = "";
+      this.render();
+      this.signature = this.currentSignature();
       return;
     }
     if (input.matches("[data-sad-select-all]")) {

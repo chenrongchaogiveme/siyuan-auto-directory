@@ -51,6 +51,13 @@ export function openSettingsDialog(config, saveConfig, reloadPanels) {
   </label>
   <label class="sad-settings__toggle">
     <span class="sad-settings__toggle-text">
+      <span class="sad-settings__label">隐藏目录内引用</span>
+      <span class="sad-settings__hint">开启后，正文引用中指向当前目录已有文档的条目不再行内重复显示；指向目录外文档的引用仍保留。</span>
+    </span>
+    <input id="sad-hide-indexed-references" type="checkbox" class="b3-switch" ${config.hideIndexedReferences !== false ? "checked" : ""}>
+  </label>
+  <label class="sad-settings__toggle">
+    <span class="sad-settings__toggle-text">
       <span class="sad-settings__label">显示文档标签</span>
       <span class="sad-settings__hint">在目录行展示文档内使用的 #标签#；单标签靠右显示，多个标签在标题下方左侧换行展示。</span>
     </span>
@@ -66,6 +73,7 @@ export function openSettingsDialog(config, saveConfig, reloadPanels) {
   <div class="sad-settings__note">
     有子文档或正文引用文档时自动显示，不再区分空白文档。<br>
     点击标题右侧的图钉可置顶当前层级，置顶状态会自动保存。<br>
+    标题栏的排序下拉只影响当前目录显示，切回“文档树顺序”或切换文档即恢复。<br>
     目录是阅读辅助浮层，不会写入正文；旧版目录块可在面板顶部清理。
   </div>
 </div>
@@ -125,6 +133,7 @@ export function openSettingsDialog(config, saveConfig, reloadPanels) {
         const updatedTime = dialog.element.querySelector("#sad-show-updated-time");
         const createdTime = dialog.element.querySelector("#sad-show-created-time");
         const references = dialog.element.querySelector("#sad-show-references");
+        const hideIndexedReferences = dialog.element.querySelector("#sad-hide-indexed-references");
         const tags = dialog.element.querySelector("#sad-show-tags");
         const moveConfirm = dialog.element.querySelector("#sad-confirm-move");
         const next = normalizeConfig({
@@ -135,6 +144,7 @@ export function openSettingsDialog(config, saveConfig, reloadPanels) {
             showUpdatedTime: updatedTime ? updatedTime.checked : config.showUpdatedTime,
             showCreatedTime: createdTime ? createdTime.checked : config.showCreatedTime,
             showReferencedDocs: references ? references.checked : config.showReferencedDocs,
+            hideIndexedReferences: hideIndexedReferences ? hideIndexedReferences.checked : config.hideIndexedReferences,
             showDocumentTags: tags ? tags.checked : config.showDocumentTags,
             confirmMove: moveConfirm ? moveConfirm.checked : config.confirmMove,
         });

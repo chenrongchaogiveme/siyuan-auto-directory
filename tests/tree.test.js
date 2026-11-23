@@ -5,6 +5,7 @@ import {
     addExternalNode,
     applyDocumentTags,
     applyPinnedNodes,
+    applySortMode,
     applyTreeOrder,
     buildTree,
     canMoveNode,
@@ -154,4 +155,65 @@ test("a node cannot be moved into its own subtree or an external reference", () 
     assert.equal(canMoveNode(tree, "a", "a1"), false);
     assert.equal(canMoveNode(tree, "external", "a"), false);
     assert.equal(canMoveNode(tree, "a", "external"), false);
+});
+test("temporary sort modes order siblings and restore document-tree order", () => {
+    const tree = buildTree([
+        {id: "root", hpath: "/Root", content: "Root"},
+        {id: "a", hpath: "/Root/A", content: "Bravo", created: "20261101000000", updated: "20261103000000"},
+        {id: "b", hpath: "/Root/B", content: "Alpha", created: "20261103000000", updated: "20261101000000"},
+        {id: "c", hpath: "/Root/C", content: "Charlie", created: "20261102000000", updated: "20261102000000"},
+    ], "root", "/Root");
+    applyTreeOrder(tree, new Map([["a", 0], ["b", 1], ["c", 2]]));
+    assert.deepEqual(tree.children.map((node) => node.id), ["a", "b", "c"]);
+
+    applySortMode(tree, "title", "asc");
+    assert.deepEqual(tree.children.map((node) => node.id), ["b", "a", "c"]);
+    applySortMode(tree, "title", "desc");
+    assert.deepEqual(tree.children.map((node) => node.id), ["c", "a", "b"]);
+
+    applySortMode(tree, "updated", "desc");
+    assert.deepEqual(tree.children.map((node) => node.id), ["a", "c", "b"]);
+    applySortMode(tree, "updated", "asc");
+    assert.deepEqual(tree.children.map((node) => node.id), ["b", "c", "a"]);
+    applySortMode(tree, "created", "desc");
+    assert.deepEqual(tree.children.map((node) => node.id), ["b", "c", "a"]);
+
+    applySortMode(tree, "tree", "asc");
+    assert.deepEqual(tree.children.map((node) => node.id), ["a", "b", "c"]);
+});
+
+test("temporary sorting keeps pinned documents on top", () => {
+    const tree = buildTree([
+        {id: "root", hpath: "/Root", content: "Root"},
+        {id: "a", hpath: "/Root/A", content: "Alpha"},
+        {id: "b", hpath: "/Root/B", content: "Bravo"},
+        {id: "c", hpath: "/Root/C", content: "Charlie"},
+    ], "root", "/Root");
+    applyPinnedNodes(tree, new Set(["c"]));
+    applySortMode(tree, "title", "asc");
+    assert.deepEqual(tree.children.map((node) => node.id), ["c", "a", "b"]);
+});
+
+test("temporary time sorting keeps documents without timestamps last", () => {
+    const tree = buildTree([
+        {id: "root", hpath: "/Root", content: "Root"},
+        {id: "a", hpath: "/Root/A", content: "Alpha", updated: "20261103000000"},
+        {id: "b", hpath: "/Root/B", content: "Bravo"},
+        {id: "c", hpath: "/Root/C", content: "Charlie", updated: "20261101000000"},
+    ], "root", "/Root");
+    applySortMode(tree, "updated", "desc");
+    assert.deepEqual(tree.children.map((node) => node.id), ["a", "c", "b"]);
+    applySortMode(tree, "updated", "asc");
+    assert.deepEqual(tree.children.map((node) => node.id), ["c", "a", "b"]);
+});
+
+test("temporary sorting is recursive across levels", () => {
+    const tree = buildTree([
+        {id: "root", hpath: "/Root", content: "Root"},
+        {id: "a", hpath: "/Root/A", content: "Alpha"},
+        {id: "a1", hpath: "/Root/A/Zulu", content: "Zulu"},
+        {id: "a2", hpath: "/Root/A/Beta", content: "Beta"},
+    ], "root", "/Root");
+    applySortMode(tree, "title", "asc");
+    assert.deepEqual(tree.children[0].children.map((node) => node.id), ["a2", "a1"]);
 });

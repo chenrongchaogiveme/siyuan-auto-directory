@@ -59,6 +59,11 @@ function parseDateTime(value) {
     return Number.isNaN(timestamp) ? null : new Date(timestamp);
 }
 
+export function timestampValue(value) {
+    const date = parseDateTime(value);
+    return date ? date.getTime() : NaN;
+}
+
 export function formatDateTime(value) {
     const date = parseDateTime(value);
     if (!date || Number.isNaN(date.getTime())) {

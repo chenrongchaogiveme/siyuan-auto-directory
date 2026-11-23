@@ -205,6 +205,26 @@
   text-overflow: ellipsis;
 }
 
+.siyuan-auto-directory__sort {
+  flex: 0 0 auto;
+  height: 26px;
+  max-width: 132px;
+  padding: 0 6px;
+  border: 1px solid var(--sad-border);
+  border-radius: 6px;
+  background: var(--sad-surface);
+  color: var(--b3-theme-on-background, #d9e1eb);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.siyuan-auto-directory__sort:hover,
+.siyuan-auto-directory__sort:focus-visible {
+  border-color: var(--sad-accent);
+  outline: none;
+}
+
 .siyuan-auto-directory__actions {
   display: inline-flex;
   flex: 0 0 auto;
@@ -983,5 +1003,15 @@
     margin: 10px 0 16px;
     padding: 12px;
     border-radius: 10px;
+  }
+}
+
+@media (max-width: 620px) {
+  .siyuan-auto-directory__status {
+    display: none;
+  }
+
+  .siyuan-auto-directory__sort {
+    max-width: 112px;
   }
 }
