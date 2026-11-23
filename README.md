@@ -2,6 +2,8 @@ English | [中文](https://github.com/chenrongchaogiveme/siyuan-auto-directory/b
 
 # Auto Directory
 
+Version `1.3.0` · Requires SiYuan `3.8.0+`
+
 Show a live directory of real child documents and documents referenced in the body above the current SiYuan document, without writing anything into the document.
 
 ## About this plugin
@@ -25,7 +27,7 @@ The plugin renders in the normal DOM above `.protyle-content`. It looks like it 
 - Shows the directory whenever the current document has child documents or body references; it is no longer limited to empty documents.
 - Renders the real child-document hierarchy in SiYuan document-tree order. References are attached to the note that contains them instead of being flattened to the top level.
 - Temporarily sort the directory by name, created time, or updated time, ascending or descending, from the panel header. Sorting only changes the current view; choose "Document tree order" to restore SiYuan's order, and it resets automatically when you switch documents.
-- Quick directory: press `Ctrl+Alt+D` (or the search icon in the top bar) to open a floating workspace-wide tree in SiYuan sidebar order. It auto-expands and highlights the current document; search spans all notebooks and shows breadcrumbs for duplicates. Use ↑↓ to move, ←→ to collapse/expand, Enter to open, Esc to close. Rebind it in SiYuan Settings → Shortcuts by searching for “Quick Directory”.
+- Quick directory: press `Ctrl+Alt+D` (or the search icon in the top bar) to open a floating workspace-wide tree in SiYuan sidebar order. It auto-expands and highlights the current document; search spans all notebooks and shows breadcrumbs for duplicates. Click a notebook name to open its root document; the twisty only expands/collapses. Use ↑↓ to move, ←→ to collapse/expand, Enter to open, Esc to close. Rebind it in SiYuan Settings → Shortcuts by searching for “Quick Directory”.
 - Pin a document to the top of its current level with the pin button next to the title; pinned rows stay above newly added siblings and can be unpinned.
 - Show each document's #tags: a single tag stays on the right side of the row, while multiple tags wrap below the title on the left.
 - Shows the last-updated time on each row. Created time is available in the title tooltip by default and can be shown permanently in settings.
@@ -51,6 +53,8 @@ I also maintain [QuickAdd](https://github.com/chenrongchaogiveme/siyuan-quickadd
 `index.js` is a build artifact, not the hand-written entry point. The source is split by responsibility:
 
 - `src/api.js`: SiYuan kernel APIs
+- `src/workspace.js`: workspace-wide tree building, `sort.json` ordering, and current-document lookup
+- `src/overlay.js`: quick-directory overlay (tree expansion, search, keyboard handling)
 - `src/tree.js`: document tree building, pin sorting, tag merging, reference merging, and signatures
 - `src/renderer.js`: renders only visible levels and a small number of inline references
 - `src/panel.js`: overlay lifecycle, expand, open, and delete
@@ -98,6 +102,7 @@ Open settings from the list icon on the right side of the top bar:
 - Show document tags (single tags on the right; multiple tags wrap below the title)
 - Show documents referenced in the body (when off, only real child documents are shown)
 - Confirm before moving (when off, drag-and-drop moves run immediately; you can also disable the prompt in the first move dialog)
+- Quick directory shortcut: default `Ctrl+Alt+D`, managed by SiYuan; change it in SiYuan Settings → Shortcuts by searching for “Quick Directory”
 
 The old "only show in empty documents" option has been removed.
 
@@ -113,6 +118,14 @@ Temporary sorting is controlled from the panel header and is not saved as a sett
 ## Changelog
 
 Newest version first.
+
+### 1.3.0
+
+- Added: quick directory overlay. Press `Ctrl+Alt+D` (or the search icon in the top bar) to open a workspace-wide document tree in SiYuan sidebar order. It expands and highlights the current document, shows breadcrumbs while searching, and supports ↑↓, ←→, Enter, and Esc.
+- Added: click a notebook name to open its root document; the twisty only expands/collapses. Rebind the command in SiYuan Settings → Shortcuts by searching for “Quick Directory”.
+- Changed: directory rows no longer show “referenced”/“external” badges. Body references are listed inline under their source note, and referenced documents show a “referenced by …” line that can span notes and notebooks.
+- Changed: the “hide references already in this directory” switch was removed; such references are now always omitted automatically, while sibling and external references stay visible.
+- Improved: only visible editors refresh; `transactions` are debounced to 650ms and structural events to 140ms; the quick directory loads documents, sort order, and notebooks in parallel.
 
 ### 1.2.0
 
