@@ -2320,10 +2320,21 @@ var AutoDirectoryPlugin = class extends import_siyuan5.Plugin {
       callback: () => this.openSetting()
     });
     this.overlay = new DirectoryOverlay(this);
+    const quickDirectoryLabel = text(this.i18n && this.i18n.quickDirectory) || "\u5FEB\u901F\u76EE\u5F55";
+    try {
+      this.addCommand({
+        langKey: "quickDirectory",
+        langText: quickDirectoryLabel,
+        hotkey: "\u2303\u2325D",
+        callback: () => this.toggleQuickDirectory()
+      });
+    } catch (error) {
+      console.warn("[siyuan-auto-directory] \u6CE8\u518C\u5FEB\u901F\u76EE\u5F55\u547D\u4EE4\u5931\u8D25\uFF0C\u4EC5\u4F7F\u7528\u952E\u76D8\u76D1\u542C", error);
+    }
     document.addEventListener("keydown", this.onGlobalKeydown, true);
     this.addTopBar({
       icon: "iconSearch",
-      title: "\u5FEB\u901F\u76EE\u5F55\uFF08Alt+Shift+D\uFF09",
+      title: `${quickDirectoryLabel}\uFF08Ctrl+Alt+D\uFF09`,
       position: "right",
       callback: () => this.toggleQuickDirectory()
     });
@@ -2747,13 +2758,18 @@ var AutoDirectoryPlugin = class extends import_siyuan5.Plugin {
       return;
     }
     const key = text(event.key).toLowerCase();
-    if (key === "d" && event.altKey && event.shiftKey) {
+    if (key === "d" && event.ctrlKey && event.altKey && !event.shiftKey && !event.metaKey) {
       event.preventDefault();
       event.stopPropagation();
       this.toggleQuickDirectory();
     }
   }
   toggleQuickDirectory() {
+    const now = Date.now();
+    if (now - (this.lastQuickToggle || 0) < 200) {
+      return;
+    }
+    this.lastQuickToggle = now;
     if (this.overlay && this.overlay.isOpen) {
       this.overlay.close();
       return;

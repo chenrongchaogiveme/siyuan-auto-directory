@@ -33,12 +33,24 @@ $files = @(
     "preview.png"
 )
 
+$folders = @("i18n")
+
 foreach ($file in $files) {
     $source = Join-Path $root $file
     if (-not (Test-Path -LiteralPath $source)) {
         throw "Missing deploy file: $file"
     }
     Copy-Item -LiteralPath $source -Destination $targetPath -Force
+}
+
+foreach ($folder in $folders) {
+    $source = Join-Path $root $folder
+    if (-not (Test-Path -LiteralPath $source -PathType Container)) {
+        throw "Missing deploy folder: $folder"
+    }
+    $destination = Join-Path $targetPath $folder
+    New-Item -ItemType Directory -Path $destination -Force | Out-Null
+    Copy-Item -Path (Join-Path $source "*") -Destination $destination -Force
 }
 
 Write-Host "Deployed to $targetPath"

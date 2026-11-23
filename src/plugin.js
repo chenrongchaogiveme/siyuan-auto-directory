@@ -84,10 +84,21 @@ export class AutoDirectoryPlugin extends Plugin {
         });
 
         this.overlay = new DirectoryOverlay(this);
+        const quickDirectoryLabel = text(this.i18n && this.i18n.quickDirectory) || "快速目录";
+        try {
+            this.addCommand({
+                langKey: "quickDirectory",
+                langText: quickDirectoryLabel,
+                hotkey: "⌃⌥D",
+                callback: () => this.toggleQuickDirectory(),
+            });
+        } catch (error) {
+            console.warn("[siyuan-auto-directory] 注册快速目录命令失败，仅使用键盘监听", error);
+        }
         document.addEventListener("keydown", this.onGlobalKeydown, true);
         this.addTopBar({
             icon: "iconSearch",
-            title: "快速目录（Alt+Shift+D）",
+            title: `${quickDirectoryLabel}（Ctrl+Alt+D）`,
             position: "right",
             callback: () => this.toggleQuickDirectory(),
         });
@@ -536,7 +547,7 @@ export class AutoDirectoryPlugin extends Plugin {
             return;
         }
         const key = text(event.key).toLowerCase();
-        if (key === "d" && event.altKey && event.shiftKey) {
+        if (key === "d" && event.ctrlKey && event.altKey && !event.shiftKey && !event.metaKey) {
             event.preventDefault();
             event.stopPropagation();
             this.toggleQuickDirectory();
@@ -544,6 +555,11 @@ export class AutoDirectoryPlugin extends Plugin {
     }
 
     toggleQuickDirectory() {
+        const now = Date.now();
+        if (now - (this.lastQuickToggle || 0) < 200) {
+            return;
+        }
+        this.lastQuickToggle = now;
         if (this.overlay && this.overlay.isOpen) {
             this.overlay.close();
             return;
