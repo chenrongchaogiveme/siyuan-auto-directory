@@ -2437,7 +2437,7 @@ var DirectoryOverlay = class {
       <span class="sad-overlay__scope"></span>
     </div>
     <div class="sad-overlay__list" role="listbox" aria-label="\u76EE\u5F55\u6587\u6863"></div>
-    <div class="sad-overlay__foot">\u2191\u2193 \u9009\u62E9 \xB7 \u2190\u2192 \u6298\u53E0/\u5C55\u5F00 \xB7 Enter \u6253\u5F00 \xB7 Esc \u5173\u95ED</div>
+    <div class="sad-overlay__foot">\u2191\u2193 \u9009\u62E9 \xB7 \u2190\u2192 \u6298\u53E0/\u5C55\u5F00 \xB7 Enter \u6253\u5F00 \xB7 \u70B9\u4E09\u89D2\u6298\u53E0 \xB7 Esc \u5173\u95ED</div>
   </div>`;
     wrapper.addEventListener("mousedown", (event) => {
       if (event.target && event.target.closest && event.target.closest("[data-sad-overlay-close]")) {
@@ -2445,16 +2445,20 @@ var DirectoryOverlay = class {
         this.close();
       }
     });
+    wrapper.addEventListener("mouseover", (event) => {
+      const row = event.target && event.target.closest ? event.target.closest("[data-sad-overlay-row]") : null;
+      if (!row) {
+        return;
+      }
+      const index = this.visible.findIndex((entry) => entry.key === row.getAttribute("data-sad-overlay-row"));
+      if (index >= 0 && index !== this.activeIndex) {
+        this.activeIndex = index;
+        this.syncActive();
+      }
+    });
     wrapper.addEventListener("click", (event) => {
       const target = event.target;
       if (!target || !target.closest) {
-        return;
-      }
-      const toggle = target.closest("[data-sad-overlay-toggle]");
-      if (toggle) {
-        event.preventDefault();
-        event.stopPropagation();
-        this.toggle(toggle.getAttribute("data-sad-overlay-toggle"));
         return;
       }
       const row = target.closest("[data-sad-overlay-row]");
@@ -2462,12 +2466,22 @@ var DirectoryOverlay = class {
         return;
       }
       event.preventDefault();
-      const item = this.visible.find((entry) => entry.key === row.getAttribute("data-sad-overlay-row"));
-      if (item && item.isNotebook) {
-        this.toggle(item.key);
+      const key = row.getAttribute("data-sad-overlay-row");
+      const index = this.visible.findIndex((entry) => entry.key === key);
+      if (index >= 0) {
+        this.activeIndex = index;
+      }
+      const toggle = target.closest("[data-sad-overlay-toggle]");
+      if (toggle) {
+        this.syncActive();
+        this.toggle(key);
         return;
       }
-      this.pick(item ? item.id : row.getAttribute("data-sad-overlay-row"));
+      const item = this.visible.find((entry) => entry.key === key);
+      if (!item) {
+        return;
+      }
+      this.pick(item.id);
     });
     this.input = wrapper.querySelector(".sad-overlay__search");
     this.list = wrapper.querySelector(".sad-overlay__list");
@@ -2513,18 +2527,7 @@ var DirectoryOverlay = class {
       ${badge}
     </button>`;
     }).join("");
-    const active = this.list.querySelector(".is-active");
-    if (this.scrollToCurrent) {
-      const current = this.list.querySelector(".is-current");
-      this.scrollToCurrent = false;
-      if (current && typeof current.scrollIntoView === "function") {
-        current.scrollIntoView({ block: "center" });
-        return;
-      }
-    }
-    if (active && typeof active.scrollIntoView === "function") {
-      active.scrollIntoView({ block: "nearest" });
-    }
+    this.scrollActive();
   }
   toggle(key) {
     const target = text(key);
@@ -2550,7 +2553,36 @@ var DirectoryOverlay = class {
     }
     const next = this.activeIndex + delta;
     this.activeIndex = Math.max(0, Math.min(this.visible.length - 1, next));
-    this.renderList();
+    this.syncActive();
+    this.scrollActive();
+  }
+  syncActive() {
+    if (!this.list) {
+      return;
+    }
+    const items = this.list.querySelectorAll(".sad-overlay__row");
+    items.forEach((element, index) => {
+      const active = index === this.activeIndex;
+      element.classList.toggle("is-active", active);
+      element.setAttribute("aria-selected", String(active));
+    });
+  }
+  scrollActive() {
+    if (!this.list) {
+      return;
+    }
+    if (this.scrollToCurrent) {
+      const current = this.list.querySelector(".is-current");
+      this.scrollToCurrent = false;
+      if (current && typeof current.scrollIntoView === "function") {
+        current.scrollIntoView({ block: "center" });
+        return;
+      }
+    }
+    const active = this.list.querySelector(".is-active");
+    if (active && typeof active.scrollIntoView === "function") {
+      active.scrollIntoView({ block: "nearest" });
+    }
   }
   expandActive(expand) {
     const row = this.visible[this.activeIndex];
@@ -2609,10 +2641,6 @@ var DirectoryOverlay = class {
       event.stopPropagation();
       const row = this.visible[this.activeIndex];
       if (!row) {
-        return;
-      }
-      if (row.isNotebook) {
-        this.toggle(row.key);
         return;
       }
       this.pick(row.id);

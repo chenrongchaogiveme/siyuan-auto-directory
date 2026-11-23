@@ -1088,7 +1088,6 @@
   cursor: pointer;
 }
 
-.sad-overlay__row:hover,
 .sad-overlay__row.is-active {
   background: var(--b3-list-hover, rgba(127, 145, 170, .18));
 }

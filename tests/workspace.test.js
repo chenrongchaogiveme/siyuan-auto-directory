@@ -65,6 +65,9 @@ test("notebook root document is merged into the notebook row", () => {
     assert.equal(forest[0].children[0].id, "a");
     assert.equal(countDocuments(forest), 1);
     assert.deepEqual(findAncestorKeys(forest, "box1"), ["box:box1"]);
+    const visible = collectVisibleRows(forest, new Set(["box:box1"]), "box1");
+    assert.equal(visible[0].id, "box1");
+    assert.equal(visible[0].current, true);
 });
 
 test("sort maps reproduce SiYuan document tree order", () => {
