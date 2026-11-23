@@ -27,6 +27,7 @@ jobs:
         run: |
           mkdir -p release
           cp index.js index.css plugin.json README.md README.zh-CN.md LICENSE icon.png preview.png release/
+          cp -r i18n release/
           cd release
           zip -r ../package.zip .
       - uses: softprops/action-gh-release@v2
