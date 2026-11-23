@@ -9,6 +9,10 @@ export function responseData(response) {
     return response.data;
 }
 
+async function readPost(path, payload) {
+    return post(path, payload, true);
+}
+
 export async function post(path, payload, silent = false) {
     const response = silent
         ? await fetchSyncPost(path, payload || {}, undefined, false)
@@ -25,15 +29,15 @@ export function escapeLike(value) {
 }
 
 export function getHPath(id) {
-    return post("/api/filetree/getHPathByID", {id});
+    return readPost("/api/filetree/getHPathByID", {id});
 }
 
 export function getDocInfo(id) {
-    return post("/api/block/getDocInfo", {id});
+    return readPost("/api/block/getDocInfo", {id});
 }
 
 export function getDocPath(id) {
-    return post("/api/filetree/getPathByID", {id});
+    return readPost("/api/filetree/getPathByID", {id});
 }
 
 export async function queryDocRows(ids) {
@@ -42,7 +46,7 @@ export async function queryDocRows(ids) {
         return [];
     }
     const quoted = unique.map((id) => `'${escapeSql(id)}'`).join(",");
-    const rows = await post("/api/query/sql", {
+    const rows = await readPost("/api/query/sql", {
         stmt: `SELECT id, hpath, path, content, created, updated FROM blocks WHERE type = 'd' AND id IN (${quoted})`,
     });
     return Array.isArray(rows) ? rows : [];
@@ -51,7 +55,7 @@ export async function queryDocRows(ids) {
 export async function queryTreeRows(notebook, hpath, path, rootId, includeAll = false) {
     const box = escapeSql(notebook);
     const scope = includeAll ? "" : buildTreeScope({rootId, hpath, path});
-    const rows = await post("/api/query/sql", {
+    const rows = await readPost("/api/query/sql", {
         stmt: `SELECT id, hpath, path, content, created, updated, sort FROM blocks WHERE type = 'd' AND box = '${box}' ${scope} ORDER BY hpath ASC`,
     });
     if (!Array.isArray(rows)) {
@@ -69,7 +73,7 @@ export async function queryReferenceRows(sourceIds) {
     for (let index = 0; index < unique.length; index += 200) {
         const chunk = unique.slice(index, index + 200);
         const quoted = chunk.map((id) => `'${escapeSql(id)}'`).join(",");
-        const result = await post("/api/query/sql", {
+        const result = await readPost("/api/query/sql", {
             stmt: `SELECT
   r.root_id AS source_id,
   CASE
@@ -97,6 +101,42 @@ LIMIT 5000`,
     return rows;
 }
 
+export async function queryIncomingReferenceRows(targetIds) {
+    const unique = Array.from(new Set((targetIds || []).filter(Boolean)));
+    if (!unique.length) {
+        return [];
+    }
+    const rows = [];
+    for (let index = 0; index < unique.length; index += 200) {
+        const chunk = unique.slice(index, index + 200);
+        const quoted = chunk.map((id) => `'${escapeSql(id)}'`).join(",");
+        const result = await readPost("/api/query/sql", {
+            stmt: `SELECT
+  r.root_id AS source_id,
+  CASE
+    WHEN r.def_block_root_id IS NOT NULL AND r.def_block_root_id <> '' THEN r.def_block_root_id
+    ELSE r.def_block_id
+  END AS target_id,
+  COUNT(*) AS reference_count,
+  MAX(COALESCE(b.content, r.content, '')) AS source_title,
+  MAX(COALESCE(b.hpath, '')) AS source_hpath,
+  MAX(COALESCE(b.path, r.def_block_path, '')) AS source_path
+FROM refs r
+LEFT JOIN blocks b ON b.id = r.root_id
+WHERE CASE
+    WHEN r.def_block_root_id IS NOT NULL AND r.def_block_root_id <> '' THEN r.def_block_root_id
+    ELSE r.def_block_id
+  END IN (${quoted})
+GROUP BY r.root_id, target_id
+ORDER BY target_id, source_hpath, source_title
+LIMIT 5000`,
+        });
+        if (Array.isArray(result)) {
+            rows.push(...result);
+        }
+    }
+    return rows;
+}
 export async function queryTagRows(ids) {
     const unique = Array.from(new Set((ids || []).filter(Boolean)));
     if (!unique.length) {
@@ -106,7 +146,7 @@ export async function queryTagRows(ids) {
     for (let index = 0; index < unique.length; index += 200) {
         const chunk = unique.slice(index, index + 200);
         const quoted = chunk.map((id) => `'${escapeSql(id)}'`).join(",");
-        const result = await post("/api/query/sql", {
+        const result = await readPost("/api/query/sql", {
             stmt: `SELECT root_id, tag FROM blocks
 WHERE root_id IN (${quoted}) AND tag IS NOT NULL AND tag <> ''
 GROUP BY root_id, tag
@@ -126,11 +166,11 @@ export async function listDocTree(notebook, path, silent = false) {
 }
 
 export function listDocTreeRange(notebook, parentID, offset = 0, limit = 500) {
-    return post("/api/filetree/listDocTreeRange", {notebook, parentID, offset, limit});
+    return readPost("/api/filetree/listDocTreeRange", {notebook, parentID, offset, limit});
 }
 
 export async function findLegacyBlocks(docId) {
-    const rows = await post("/api/query/sql", {
+    const rows = await readPost("/api/query/sql", {
         stmt: `SELECT id FROM blocks WHERE root_id = '${escapeSql(docId)}' AND markdown LIKE '%${LEGACY_MARKER}%'`,
     });
     return Array.isArray(rows) ? rows.map((row) => row.id).filter(Boolean) : [];

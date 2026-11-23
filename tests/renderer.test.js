@@ -124,15 +124,39 @@ test("root document references do not create a top summary banner", () => {
     assert.match(html, /引用 1 篇/);
 });
 
-test("referenced child documents keep only the compact referenced badge", () => {
+test("referenced documents show an incoming reference line without badges", () => {
     const model = tree();
-    markReferenced(model, ["a"], {id: "root", title: "Root", hpath: "/Root", path: "/Root.sy"});
+    markReferenced(model, ["a"], {id: "a1", title: "A1", hpath: "/Root/A/A1", path: "/Root/A/A1.sy"});
     const state = {expanded: new Set(), referenceExpanded: new Set(), selection: new Set(), page: new Map()};
     const html = renderPanelHtml(model, state, {maxDepth: 0, defaultExpandedDepth: 4, showChildCount: true, showReferencedDocs: true});
-    assert.match(html, /被引用/);
-    assert.doesNotMatch(html, /引用自/);
-    assert.doesNotMatch(html, /data-sad-open="root"/);
+    assert.match(html, /被引用了/);
+    assert.match(html, /data-sad-open="a1"/);
+    assert.doesNotMatch(html, /siyuan-auto-directory__badge/);
     assert.match(html, /data-sad-draggable="true"/);
+});
+
+
+test("current document references do not create incoming lines", () => {
+    const model = tree();
+    addReference(model, "root", {id: "a", title: "A", hpath: "/Root/A", path: "/Root/A.sy"});
+    const state = {expanded: new Set(["root"]), referenceExpanded: new Set(), selection: new Set(), page: new Map()};
+    const html = renderPanelHtml(model, state, {maxDepth: 0, defaultExpandedDepth: 4, showChildCount: true, showReferencedDocs: true});
+    assert.doesNotMatch(html, /被引用了/);
+});
+
+test("references to sibling documents in the tree stay visible", () => {
+    const model = buildTree([
+        {id: "root", hpath: "/Root", content: "Root"},
+        {id: "a", hpath: "/Root/A", content: "A"},
+        {id: "b", hpath: "/Root/B", content: "B"},
+    ], "root", "/Root");
+    addReference(model, "a", {id: "b", title: "B", hpath: "/Root/B", path: "/Root/B.sy"});
+    const state = {expanded: new Set(["root"]), referenceExpanded: new Set(), selection: new Set(), page: new Map()};
+    const config = {maxDepth: 0, defaultExpandedDepth: 4, showChildCount: true, showReferencedDocs: true};
+    const html = renderPanelHtml(model, state, config);
+    assert.match(html, /引用 1 篇/);
+    assert.match(html, /data-sad-open="b"/);
+    assert.match(html, /\/Root\/B/);
 });
 
 test("inline references show two links first and expose the rest on demand", () => {
@@ -265,37 +289,16 @@ test("renderer exposes a temporary sort selector and drag hint", () => {
     assert.match(sortedHtml, /自动排序下暂停同级拖拽/);
     assert.match(sortedHtml, /当前为临时排序，切回“文档树顺序”即可恢复/);
 });
-test("hideIndexedReferences hides inline references already present in the tree", () => {
+test("inline references to subdocuments are hidden while other references stay", () => {
     const model = tree();
-    addReference(model, "a", {
-        id: "a1",
-        title: "A1",
-        hpath: "/Root/A/A1",
-        path: "/Root/A/A1.sy",
-    });
-    addReference(model, "a", {
-        id: "outside",
-        title: "Outside",
-        hpath: "/Other",
-        path: "/other.sy",
-    });
+    addReference(model, "a", {id: "a1", title: "A1", hpath: "/Root/A/A1", path: "/Root/A/A1.sy"});
+    addReference(model, "a", {id: "outside", title: "Outside", hpath: "/Other", path: "/other.sy"});
     const state = {expanded: new Set(), referenceExpanded: new Set(), selection: new Set(), page: new Map()};
-    const config = {
-        maxDepth: 0,
-        defaultExpandedDepth: 4,
-        showChildCount: true,
-        showReferencedDocs: true,
-        hideIndexedReferences: true,
-    };
-    const hidden = renderPanelHtml(model, state, config);
-    assert.match(hidden, /引用 1 篇/);
-    assert.match(hidden, /data-sad-open="outside"/);
-    assert.match(hidden, /\/Other/);
-    assert.doesNotMatch(hidden, /\/Root\/A\/A1/);
-    assert.doesNotMatch(hidden, /data-sad-open="a1"/);
-
-    const shown = renderPanelHtml(model, state, {...config, hideIndexedReferences: false});
-    assert.match(shown, /引用 2 篇/);
-    assert.match(shown, /\/Root\/A\/A1/);
-    assert.match(shown, /data-sad-open="a1"/);
+    const config = {maxDepth: 0, defaultExpandedDepth: 4, showChildCount: true, showReferencedDocs: true};
+    const html = renderPanelHtml(model, state, config);
+    assert.match(html, /引用 1 篇/);
+    assert.match(html, /data-sad-open="outside"/);
+    assert.match(html, /\/Other/);
+    assert.doesNotMatch(html, /\/Root\/A\/A1/);
+    assert.doesNotMatch(html, /data-sad-open="a1"/);
 });

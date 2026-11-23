@@ -15,8 +15,8 @@
     "zh-CN": "自动目录"
   },
   "description": {
-    "default": "Shows a live child-document and referenced-document tree above every document, with per-level pinning, #tags, temporary name/time sorting, and hiding references already in the tree, without writing to the document.",
-    "zh-CN": "在当前文档上方显示真实子文档与逐篇引用目录，支持临时排序、隐藏目录内引用、层级置顶、文档 #标签、拖拽移动、移动确认和多选删除，不写入正文。"
+    "default": "Shows a live child-document and referenced-document tree above every document, with per-level pinning, #tags, and temporary name/time sorting, without writing to the document.",
+    "zh-CN": "在当前文档上方显示真实子文档与逐篇引用目录，支持临时排序、层级置顶、文档 #标签、引用与被引用关系、拖拽移动、移动确认和多选删除，不写入正文。"
   },
   "readme": {
     "default": "README.md",

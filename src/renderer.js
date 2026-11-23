@@ -37,11 +37,11 @@ function childLimit(node, depth, config) {
     return node.children || [];
 }
 
-function referencedCount(tree, hideIndexed = false) {
+function referencedCount(tree) {
     let count = 0;
     const visit = (node) => {
         (node.references || []).forEach((reference) => {
-            if (!hideIndexed || reference.external) {
+            if (reference.descendant !== true) {
                 count += 1;
             }
         });
@@ -98,11 +98,11 @@ function renderReferenceLine(state, key, label, references) {
     </span>`;
 }
 
-function renderInlineReferences(references, sourceId, state, label = "引用了") {
+function renderInlineReferences(references, sourceId, state, label = "引用了", kind = "out") {
     if (!references.length) {
         return "";
     }
-    return renderReferenceLine(state, referenceKey("out", sourceId), label, references);
+    return renderReferenceLine(state, referenceKey(kind, sourceId), label, references);
 }
 
 function renderNavigation(tree, state) {
@@ -160,15 +160,14 @@ function renderNode(node, depth, state, config) {
     const count = config.showChildCount && hasChildren
         ? `<span class="siyuan-auto-directory__count" title="直接子文档数">${children.length}</span>`
         : "";
-    const badge = showReferencedDocs && node.referenced
-        ? node.external
-            ? `<span class="siyuan-auto-directory__badge siyuan-auto-directory__badge--external" title="当前文档引用了树外文档">外部引用</span>`
-            : `<span class="siyuan-auto-directory__badge" title="其他目录笔记引用了这个文档">被引用</span>`
-        : "";
-    const visibleReferences = config.hideIndexedReferences !== false
-        ? references.filter((reference) => reference.external)
-        : references;
+    const visibleReferences = references.filter((reference) => reference.descendant !== true);
     const inlineReferences = visibleReferences.length ? renderInlineReferences(visibleReferences, node.id, state) : "";
+    const incomingSources = showReferencedDocs && Array.isArray(node.referenceSources)
+        ? node.referenceSources.filter((item) => item && item.id)
+        : [];
+    const incomingReferences = incomingSources.length
+        ? renderInlineReferences(incomingSources, node.id, state, "被引用了", "in")
+        : "";
     const createdTime = formatDateTime(node.created);
     const updatedTime = formatDateTime(node.updated);
     const createdText = createdTime ? `创建 ${createdTime}` : "";
@@ -205,10 +204,10 @@ function renderNode(node, depth, state, config) {
       ${detailTags}
       ${showCreatedTime ? `<span class="siyuan-auto-directory__meta" title="${escapeHtml(timeDetail)}">${escapeHtml(createdText)}</span>` : ""}
       ${inlineReferences}
+      ${incomingReferences}
     </div>
     ${inlineTags}
     ${showUpdatedTime ? `<span class="siyuan-auto-directory__time" title="最后修改时间：${escapeHtml(updatedTime)}">${escapeHtml(updatedText)}</span>` : ""}
-    ${badge}
     ${count}
     <button class="siyuan-auto-directory__delete" type="button" data-sad-delete="${escapeHtml(node.id)}" title="删除：${escapeHtml(node.title)}">删除</button>
     <button class="siyuan-auto-directory__open" type="button" data-sad-open="${escapeHtml(node.id)}" title="打开：${escapeHtml(node.title)}" aria-label="打开：${escapeHtml(node.title)}">→</button>
@@ -223,7 +222,7 @@ export function renderPanelHtml(tree, state, config, legacyIds = []) {
     const showRefs = config.showReferencedDocs !== false;
     const selectable = allSelectableIds(tree);
     const allChecked = selectable.length > 0 && selectable.every((id) => state.selection.has(id));
-    const refs = showRefs ? referencedCount(tree, config.hideIndexedReferences !== false) : 0;
+    const refs = showRefs ? referencedCount(tree) : 0;
     const scope = config.maxDepth > 0 ? ` · 最多 ${config.maxDepth} 层` : "";
     const refText = refs ? ` · 引用 ${refs} 篇` : "";
     const sourceText = showRefs ? "真实子文档层级 + 逐篇引用" : "真实子文档层级";

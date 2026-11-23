@@ -16,7 +16,6 @@ export function normalizeConfig(input) {
         autoExpand: source.autoExpand !== false,
         showChildCount: source.showChildCount !== false,
         showReferencedDocs: source.showReferencedDocs !== false,
-        hideIndexedReferences: source.hideIndexedReferences !== false,
         showDocumentTags: source.showDocumentTags !== false,
         showCreatedTime: source.showCreatedTime === true,
         showUpdatedTime: source.showUpdatedTime !== false,

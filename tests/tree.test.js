@@ -4,6 +4,7 @@ import {
     addReference,
     addExternalNode,
     applyDocumentTags,
+    applyIncomingReferences,
     applyPinnedNodes,
     applySortMode,
     applyTreeOrder,
@@ -76,19 +77,32 @@ test("referenced documents are marked and merged", () => {
     assert.equal(tree.children.some((node) => node.id === "external"), true);
 });
 
+test("incoming references merge external sources and skip the current document", () => {
+    const tree = buildTree(rows, "root", "/Projects");
+    applyIncomingReferences(tree, [
+        {target_id: "a", source_id: "root", source_title: "Projects", source_hpath: "/Projects", source_path: "/Projects.sy"},
+        {target_id: "a", source_id: "outside", source_title: "Outside", source_hpath: "/Other/Outside", source_path: "/Other/Outside.sy"},
+        {target_id: "a", source_id: "outside", source_title: "Outside", source_hpath: "/Other/Outside", source_path: "/Other/Outside.sy"},
+    ], "root");
+    const node = tree.index.get("a");
+    assert.equal(node.referenceSources.length, 1);
+    assert.equal(node.referenceSources[0].id, "outside");
+    assert.equal(node.referenceSources[0].external, true);
+    assert.equal(node.referenced, true);
+});
 test("references are attached to the source document and mark the target", () => {
     const tree = buildTree(rows, "root", "/Projects");
-    addReference(tree, "root", {
+    addReference(tree, "b", {
         id: "a",
         title: "A",
         hpath: "/Projects/A",
         path: "/Projects/A.sy",
         count: 2,
     });
-    assert.equal(tree.index.get("root").references[0].id, "a");
-    assert.equal(tree.index.get("root").references[0].count, 2);
+    assert.equal(tree.index.get("b").references[0].id, "a");
+    assert.equal(tree.index.get("b").references[0].count, 2);
     assert.equal(tree.index.get("a").referenced, true);
-    assert.equal(tree.index.get("a").referenceSources[0].title, "Projects");
+    assert.equal(tree.index.get("a").referenceSources[0].title, "B");
 });
 
 test("filetree order overrides the fallback title order", () => {

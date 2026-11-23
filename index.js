@@ -29,7 +29,6 @@ var init_constants = __esm({
       autoExpand: true,
       showChildCount: true,
       showReferencedDocs: true,
-      hideIndexedReferences: true,
       showDocumentTags: true,
       showCreatedTime: false,
       showUpdatedTime: true,
@@ -69,7 +68,6 @@ function normalizeConfig(input) {
     autoExpand: source.autoExpand !== false,
     showChildCount: source.showChildCount !== false,
     showReferencedDocs: source.showReferencedDocs !== false,
-    hideIndexedReferences: source.hideIndexedReferences !== false,
     showDocumentTags: source.showDocumentTags !== false,
     showCreatedTime: source.showCreatedTime === true,
     showUpdatedTime: source.showUpdatedTime !== false,
@@ -131,16 +129,9 @@ function openSettingsDialog(config, saveConfig, reloadPanels) {
   <label class="sad-settings__toggle">
     <span class="sad-settings__toggle-text">
       <span class="sad-settings__label">\u663E\u793A\u6B63\u6587\u5F15\u7528\u7684\u6587\u6863</span>
-      <span class="sad-settings__hint">\u5173\u95ED\u540E\u53EA\u663E\u793A\u771F\u5B9E\u5B50\u6587\u6863\uFF1B\u5F00\u542F\u65F6\u5F15\u7528\u6309\u6765\u6E90\u7B14\u8BB0\u884C\u5185\u5C55\u793A\uFF0C\u9ED8\u8BA4\u4EC5\u663E\u793A\u4E24\u6761\u3002</span>
+      <span class="sad-settings__hint">\u5173\u95ED\u540E\u53EA\u663E\u793A\u771F\u5B9E\u5B50\u6587\u6863\uFF1B\u5F00\u542F\u65F6\u5F15\u7528\u6309\u6765\u6E90\u7B14\u8BB0\u884C\u5185\u5C55\u793A\uFF0C\u9ED8\u8BA4\u4EC5\u663E\u793A\u4E24\u6761\uFF0C\u5E76\u663E\u793A\u5176\u4ED6\u7B14\u8BB0\uFF08\u53EF\u8DE8\u7B14\u8BB0\u672C\uFF09\u5BF9\u672C\u76EE\u5F55\u6587\u6863\u7684\u5F15\u7528\u3002</span>
     </span>
     <input id="sad-show-references" type="checkbox" class="b3-switch" ${config.showReferencedDocs !== false ? "checked" : ""}>
-  </label>
-  <label class="sad-settings__toggle">
-    <span class="sad-settings__toggle-text">
-      <span class="sad-settings__label">\u9690\u85CF\u76EE\u5F55\u5185\u5F15\u7528</span>
-      <span class="sad-settings__hint">\u5F00\u542F\u540E\uFF0C\u6B63\u6587\u5F15\u7528\u4E2D\u6307\u5411\u5F53\u524D\u76EE\u5F55\u5DF2\u6709\u6587\u6863\u7684\u6761\u76EE\u4E0D\u518D\u884C\u5185\u91CD\u590D\u663E\u793A\uFF1B\u6307\u5411\u76EE\u5F55\u5916\u6587\u6863\u7684\u5F15\u7528\u4ECD\u4FDD\u7559\u3002</span>
-    </span>
-    <input id="sad-hide-indexed-references" type="checkbox" class="b3-switch" ${config.hideIndexedReferences !== false ? "checked" : ""}>
   </label>
   <label class="sad-settings__toggle">
     <span class="sad-settings__toggle-text">
@@ -219,7 +210,6 @@ function openSettingsDialog(config, saveConfig, reloadPanels) {
     const updatedTime = dialog.element.querySelector("#sad-show-updated-time");
     const createdTime = dialog.element.querySelector("#sad-show-created-time");
     const references = dialog.element.querySelector("#sad-show-references");
-    const hideIndexedReferences = dialog.element.querySelector("#sad-hide-indexed-references");
     const tags = dialog.element.querySelector("#sad-show-tags");
     const moveConfirm = dialog.element.querySelector("#sad-confirm-move");
     const next = normalizeConfig({
@@ -230,7 +220,6 @@ function openSettingsDialog(config, saveConfig, reloadPanels) {
       showUpdatedTime: updatedTime ? updatedTime.checked : config.showUpdatedTime,
       showCreatedTime: createdTime ? createdTime.checked : config.showCreatedTime,
       showReferencedDocs: references ? references.checked : config.showReferencedDocs,
-      hideIndexedReferences: hideIndexedReferences ? hideIndexedReferences.checked : config.hideIndexedReferences,
       showDocumentTags: tags ? tags.checked : config.showDocumentTags,
       confirmMove: moveConfirm ? moveConfirm.checked : config.confirmMove
     });
@@ -339,6 +328,9 @@ function responseData(response) {
   }
   return response.data;
 }
+async function readPost(path, payload) {
+  return post(path, payload, true);
+}
 async function post(path, payload, silent = false) {
   const response = silent ? await (0, import_siyuan.fetchSyncPost)(path, payload || {}, void 0, false) : await (0, import_siyuan.fetchSyncPost)(path, payload || {});
   return responseData(response);
@@ -347,13 +339,13 @@ function escapeSql2(value) {
   return String(value == null ? "" : value).replace(/'/g, "''");
 }
 function getHPath(id) {
-  return post("/api/filetree/getHPathByID", { id });
+  return readPost("/api/filetree/getHPathByID", { id });
 }
 function getDocInfo(id) {
-  return post("/api/block/getDocInfo", { id });
+  return readPost("/api/block/getDocInfo", { id });
 }
 function getDocPath(id) {
-  return post("/api/filetree/getPathByID", { id });
+  return readPost("/api/filetree/getPathByID", { id });
 }
 async function queryDocRows(ids) {
   const unique = Array.from(new Set((ids || []).filter(Boolean)));
@@ -361,7 +353,7 @@ async function queryDocRows(ids) {
     return [];
   }
   const quoted = unique.map((id) => `'${escapeSql2(id)}'`).join(",");
-  const rows = await post("/api/query/sql", {
+  const rows = await readPost("/api/query/sql", {
     stmt: `SELECT id, hpath, path, content, created, updated FROM blocks WHERE type = 'd' AND id IN (${quoted})`
   });
   return Array.isArray(rows) ? rows : [];
@@ -369,7 +361,7 @@ async function queryDocRows(ids) {
 async function queryTreeRows(notebook, hpath, path, rootId, includeAll = false) {
   const box = escapeSql2(notebook);
   const scope = includeAll ? "" : buildTreeScope({ rootId, hpath, path });
-  const rows = await post("/api/query/sql", {
+  const rows = await readPost("/api/query/sql", {
     stmt: `SELECT id, hpath, path, content, created, updated, sort FROM blocks WHERE type = 'd' AND box = '${box}' ${scope} ORDER BY hpath ASC`
   });
   if (!Array.isArray(rows)) {
@@ -386,7 +378,7 @@ async function queryReferenceRows(sourceIds) {
   for (let index = 0; index < unique.length; index += 200) {
     const chunk = unique.slice(index, index + 200);
     const quoted = chunk.map((id) => `'${escapeSql2(id)}'`).join(",");
-    const result = await post("/api/query/sql", {
+    const result = await readPost("/api/query/sql", {
       stmt: `SELECT
   r.root_id AS source_id,
   CASE
@@ -413,6 +405,42 @@ LIMIT 5000`
   }
   return rows;
 }
+async function queryIncomingReferenceRows(targetIds) {
+  const unique = Array.from(new Set((targetIds || []).filter(Boolean)));
+  if (!unique.length) {
+    return [];
+  }
+  const rows = [];
+  for (let index = 0; index < unique.length; index += 200) {
+    const chunk = unique.slice(index, index + 200);
+    const quoted = chunk.map((id) => `'${escapeSql2(id)}'`).join(",");
+    const result = await readPost("/api/query/sql", {
+      stmt: `SELECT
+  r.root_id AS source_id,
+  CASE
+    WHEN r.def_block_root_id IS NOT NULL AND r.def_block_root_id <> '' THEN r.def_block_root_id
+    ELSE r.def_block_id
+  END AS target_id,
+  COUNT(*) AS reference_count,
+  MAX(COALESCE(b.content, r.content, '')) AS source_title,
+  MAX(COALESCE(b.hpath, '')) AS source_hpath,
+  MAX(COALESCE(b.path, r.def_block_path, '')) AS source_path
+FROM refs r
+LEFT JOIN blocks b ON b.id = r.root_id
+WHERE CASE
+    WHEN r.def_block_root_id IS NOT NULL AND r.def_block_root_id <> '' THEN r.def_block_root_id
+    ELSE r.def_block_id
+  END IN (${quoted})
+GROUP BY r.root_id, target_id
+ORDER BY target_id, source_hpath, source_title
+LIMIT 5000`
+    });
+    if (Array.isArray(result)) {
+      rows.push(...result);
+    }
+  }
+  return rows;
+}
 async function queryTagRows(ids) {
   const unique = Array.from(new Set((ids || []).filter(Boolean)));
   if (!unique.length) {
@@ -422,7 +450,7 @@ async function queryTagRows(ids) {
   for (let index = 0; index < unique.length; index += 200) {
     const chunk = unique.slice(index, index + 200);
     const quoted = chunk.map((id) => `'${escapeSql2(id)}'`).join(",");
-    const result = await post("/api/query/sql", {
+    const result = await readPost("/api/query/sql", {
       stmt: `SELECT root_id, tag FROM blocks
 WHERE root_id IN (${quoted}) AND tag IS NOT NULL AND tag <> ''
 GROUP BY root_id, tag
@@ -440,10 +468,10 @@ async function listDocTree(notebook, path, silent = false) {
   return Array.isArray(data) ? data : data && Array.isArray(data.tree) ? data.tree : [];
 }
 function listDocTreeRange(notebook, parentID, offset = 0, limit = 500) {
-  return post("/api/filetree/listDocTreeRange", { notebook, parentID, offset, limit });
+  return readPost("/api/filetree/listDocTreeRange", { notebook, parentID, offset, limit });
 }
 async function findLegacyBlocks(docId) {
-  const rows = await post("/api/query/sql", {
+  const rows = await readPost("/api/query/sql", {
     stmt: `SELECT id FROM blocks WHERE root_id = '${escapeSql2(docId)}' AND markdown LIKE '%${LEGACY_MARKER}%'`
   });
   return Array.isArray(rows) ? rows.map((row) => row.id).filter(Boolean) : [];
@@ -926,6 +954,34 @@ function markReferenced(tree, ids, source = null) {
     }
   });
 }
+function applyIncomingReferences(tree, rows, skipSourceId = "") {
+  const skip = text(skipSourceId);
+  (rows || []).forEach((row) => {
+    const targetId = text(row && row.target_id);
+    const sourceId = text(row && row.source_id);
+    if (!targetId || !sourceId || sourceId === targetId || sourceId === skip) {
+      return;
+    }
+    const node = tree.index.get(targetId);
+    if (!node) {
+      return;
+    }
+    const sources = Array.isArray(node.referenceSources) ? node.referenceSources : [];
+    if (sources.some((item) => item.id === sourceId)) {
+      node.referenceSources = sources;
+      return;
+    }
+    sources.push({
+      id: sourceId,
+      title: text(row.source_title || row.content || "\u5F15\u7528\u6587\u6863"),
+      hpath: normalizePath(row.source_hpath || ""),
+      path: text(row.source_path || ""),
+      external: !tree.index.has(sourceId)
+    });
+    node.referenceSources = sources;
+    node.referenced = true;
+  });
+}
 function addReference(tree, sourceId, info) {
   const sourceNode = findNode(tree, sourceId);
   const targetId = text(info && (info.id || info.targetId));
@@ -939,7 +995,8 @@ function addReference(tree, sourceId, info) {
     hpath: normalizePath(info && info.hpath || targetNode && targetNode.hpath || ""),
     path: text(info && info.path || targetNode && targetNode.path || ""),
     count: Math.max(1, Number(info && info.count) || 1),
-    external: !targetNode
+    external: !targetNode,
+    descendant: Boolean(targetNode) && isNodeUnder(tree, sourceId, targetId)
   };
   const existing = sourceNode.references.find((item) => item.id === targetId);
   if (existing) {
@@ -948,6 +1005,7 @@ function addReference(tree, sourceId, info) {
     existing.hpath = entry.hpath || existing.hpath;
     existing.path = entry.path || existing.path;
     existing.external = entry.external;
+    existing.descendant = entry.descendant;
   } else {
     sourceNode.references.push(entry);
   }
@@ -956,7 +1014,7 @@ function addReference(tree, sourceId, info) {
     const rightKey = right.external ? "~" + right.title : right.hpath || right.title;
     return leftKey.localeCompare(rightKey, "zh", { numeric: true, sensitivity: "base" });
   });
-  if (targetNode) {
+  if (targetNode && sourceNode.id !== tree.id) {
     markReferenced(tree, [targetId], {
       id: sourceNode.id,
       title: sourceNode.title,
@@ -1113,7 +1171,6 @@ function signature(tree, context, config) {
     config.autoExpand,
     config.showChildCount,
     config.showReferencedDocs,
-    config.hideIndexedReferences,
     config.showDocumentTags,
     config.showCreatedTime,
     config.showUpdatedTime,
@@ -1153,11 +1210,11 @@ function childLimit(node, depth, config) {
   }
   return node.children || [];
 }
-function referencedCount(tree, hideIndexed = false) {
+function referencedCount(tree) {
   let count = 0;
   const visit = (node) => {
     (node.references || []).forEach((reference) => {
-      if (!hideIndexed || reference.external) {
+      if (reference.descendant !== true) {
         count += 1;
       }
     });
@@ -1203,11 +1260,11 @@ function renderReferenceLine(state, key, label, references) {
       ${toggle}
     </span>`;
 }
-function renderInlineReferences(references, sourceId, state, label = "\u5F15\u7528\u4E86") {
+function renderInlineReferences(references, sourceId, state, label = "\u5F15\u7528\u4E86", kind = "out") {
   if (!references.length) {
     return "";
   }
-  return renderReferenceLine(state, referenceKey("out", sourceId), label, references);
+  return renderReferenceLine(state, referenceKey(kind, sourceId), label, references);
 }
 function renderNavigation(tree, state) {
   const trail = state.navigation && Array.isArray(state.navigation.trail) ? state.navigation.trail : [];
@@ -1256,9 +1313,10 @@ function renderNode(node, depth, state, config) {
   const detailTags = tagList.length > 1 ? renderTags(tagList, config, "detail") : "";
   const pinButton = node.external ? "" : `<button class="siyuan-auto-directory__pin${pinned ? " is-active" : ""}" type="button" data-sad-pin="${escapeHtml(node.id)}" aria-pressed="${pinned}" title="${pinned ? "\u53D6\u6D88\u7F6E\u9876" : "\u5728\u5F53\u524D\u5C42\u7EA7\u7F6E\u9876"}" aria-label="${pinned ? "\u53D6\u6D88\u7F6E\u9876" : "\u5728\u5F53\u524D\u5C42\u7EA7\u7F6E\u9876"}\uFF1A${escapeHtml(node.title)}">${PIN_ICON}</button>`;
   const count = config.showChildCount && hasChildren ? `<span class="siyuan-auto-directory__count" title="\u76F4\u63A5\u5B50\u6587\u6863\u6570">${children.length}</span>` : "";
-  const badge = showReferencedDocs && node.referenced ? node.external ? `<span class="siyuan-auto-directory__badge siyuan-auto-directory__badge--external" title="\u5F53\u524D\u6587\u6863\u5F15\u7528\u4E86\u6811\u5916\u6587\u6863">\u5916\u90E8\u5F15\u7528</span>` : `<span class="siyuan-auto-directory__badge" title="\u5176\u4ED6\u76EE\u5F55\u7B14\u8BB0\u5F15\u7528\u4E86\u8FD9\u4E2A\u6587\u6863">\u88AB\u5F15\u7528</span>` : "";
-  const visibleReferences = config.hideIndexedReferences !== false ? references.filter((reference) => reference.external) : references;
+  const visibleReferences = references.filter((reference) => reference.descendant !== true);
   const inlineReferences = visibleReferences.length ? renderInlineReferences(visibleReferences, node.id, state) : "";
+  const incomingSources = showReferencedDocs && Array.isArray(node.referenceSources) ? node.referenceSources.filter((item) => item && item.id) : [];
+  const incomingReferences = incomingSources.length ? renderInlineReferences(incomingSources, node.id, state, "\u88AB\u5F15\u7528\u4E86", "in") : "";
   const createdTime = formatDateTime(node.created);
   const updatedTime = formatDateTime(node.updated);
   const createdText = createdTime ? `\u521B\u5EFA ${createdTime}` : "";
@@ -1289,10 +1347,10 @@ ${timeDetail}` : ""}`;
       ${detailTags}
       ${showCreatedTime ? `<span class="siyuan-auto-directory__meta" title="${escapeHtml(timeDetail)}">${escapeHtml(createdText)}</span>` : ""}
       ${inlineReferences}
+      ${incomingReferences}
     </div>
     ${inlineTags}
     ${showUpdatedTime ? `<span class="siyuan-auto-directory__time" title="\u6700\u540E\u4FEE\u6539\u65F6\u95F4\uFF1A${escapeHtml(updatedTime)}">${escapeHtml(updatedText)}</span>` : ""}
-    ${badge}
     ${count}
     <button class="siyuan-auto-directory__delete" type="button" data-sad-delete="${escapeHtml(node.id)}" title="\u5220\u9664\uFF1A${escapeHtml(node.title)}">\u5220\u9664</button>
     <button class="siyuan-auto-directory__open" type="button" data-sad-open="${escapeHtml(node.id)}" title="\u6253\u5F00\uFF1A${escapeHtml(node.title)}" aria-label="\u6253\u5F00\uFF1A${escapeHtml(node.title)}">\u2192</button>
@@ -1306,7 +1364,7 @@ function renderPanelHtml(tree, state, config, legacyIds = []) {
   const showRefs = config.showReferencedDocs !== false;
   const selectable = allSelectableIds(tree);
   const allChecked = selectable.length > 0 && selectable.every((id) => state.selection.has(id));
-  const refs = showRefs ? referencedCount(tree, config.hideIndexedReferences !== false) : 0;
+  const refs = showRefs ? referencedCount(tree) : 0;
   const scope = config.maxDepth > 0 ? ` \xB7 \u6700\u591A ${config.maxDepth} \u5C42` : "";
   const refText = refs ? ` \xB7 \u5F15\u7528 ${refs} \u7BC7` : "";
   const sourceText = showRefs ? "\u771F\u5B9E\u5B50\u6587\u6863\u5C42\u7EA7 + \u9010\u7BC7\u5F15\u7528" : "\u771F\u5B9E\u5B50\u6587\u6863\u5C42\u7EA7";
@@ -2015,6 +2073,211 @@ var DirectoryPanel = class {
   }
 };
 
+// src/overlay.js
+var OVERLAY_LIMIT = 400;
+function escapeHtml2(value) {
+  return text(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function flattenTree(tree, depth = 0, rows = []) {
+  const children = tree && Array.isArray(tree.children) ? tree.children : [];
+  children.forEach((node) => {
+    if (!node || !node.id || node.external) {
+      return;
+    }
+    rows.push({
+      id: text(node.id),
+      title: text(node.title) || "\u672A\u547D\u540D\u6587\u6863",
+      hpath: text(node.hpath),
+      depth,
+      hasChildren: Boolean(node.children && node.children.length)
+    });
+    flattenTree(node, depth + 1, rows);
+  });
+  return rows;
+}
+function filterRows(rows, query) {
+  const keyword = text(query).trim().toLowerCase();
+  const list = Array.isArray(rows) ? rows : [];
+  if (!keyword) {
+    return list.slice();
+  }
+  return list.filter((row) => row.title.toLowerCase().includes(keyword) || row.hpath.toLowerCase().includes(keyword));
+}
+var DirectoryOverlay = class {
+  constructor(plugin) {
+    this.plugin = plugin;
+    this.element = null;
+    this.input = null;
+    this.list = null;
+    this.scope = null;
+    this.context = null;
+    this.rows = [];
+    this.visible = [];
+    this.activeIndex = 0;
+    this.query = "";
+    this.loading = false;
+    this.previousFocus = null;
+    this.onKeydownBound = (event) => this.onKeydown(event);
+  }
+  get isOpen() {
+    return Boolean(this.element);
+  }
+  open(context, tree) {
+    this.context = context || null;
+    this.previousFocus = document.activeElement;
+    if (!this.element) {
+      this.build();
+    }
+    this.query = "";
+    if (this.input) {
+      this.input.value = "";
+    }
+    this.activeIndex = 0;
+    this.setTree(tree);
+    document.addEventListener("keydown", this.onKeydownBound, true);
+    window.setTimeout(() => {
+      if (this.input) {
+        this.input.focus();
+      }
+    }, 0);
+  }
+  setTree(tree) {
+    this.loading = !tree;
+    this.rows = flattenTree(tree || { children: [] });
+    if (this.rows.length > OVERLAY_LIMIT) {
+      this.rows = this.rows.slice(0, OVERLAY_LIMIT);
+    }
+    if (this.scope) {
+      this.scope.textContent = this.rows.length ? `${this.rows.length} \u7BC7\u6587\u6863` : "";
+    }
+    this.applyFilter();
+  }
+  build() {
+    const wrapper = document.createElement("div");
+    wrapper.className = "sad-overlay";
+    wrapper.innerHTML = `
+  <div class="sad-overlay__backdrop" data-sad-overlay-close></div>
+  <div class="sad-overlay__panel" role="dialog" aria-modal="true" aria-label="\u5FEB\u901F\u76EE\u5F55">
+    <div class="sad-overlay__head">
+      <input class="sad-overlay__search b3-text-field" type="text" placeholder="\u641C\u7D22\u5F53\u524D\u76EE\u5F55\u4E0B\u7684\u6587\u6863\u2026" aria-label="\u641C\u7D22\u6587\u6863">
+      <span class="sad-overlay__scope"></span>
+    </div>
+    <div class="sad-overlay__list" role="listbox" aria-label="\u76EE\u5F55\u6587\u6863"></div>
+    <div class="sad-overlay__foot">\u2191\u2193 \u9009\u62E9 \xB7 Enter \u6253\u5F00 \xB7 Esc \u5173\u95ED</div>
+  </div>`;
+    wrapper.addEventListener("mousedown", (event) => {
+      if (event.target && event.target.closest && event.target.closest("[data-sad-overlay-close]")) {
+        event.preventDefault();
+        this.close();
+      }
+    });
+    wrapper.addEventListener("click", (event) => {
+      const row = event.target && event.target.closest ? event.target.closest("[data-sad-overlay-row]") : null;
+      if (!row) {
+        return;
+      }
+      event.preventDefault();
+      this.pick(row.getAttribute("data-sad-overlay-row"));
+    });
+    this.input = wrapper.querySelector(".sad-overlay__search");
+    this.list = wrapper.querySelector(".sad-overlay__list");
+    this.scope = wrapper.querySelector(".sad-overlay__scope");
+    this.input.addEventListener("input", () => {
+      this.query = this.input.value;
+      this.activeIndex = 0;
+      this.applyFilter();
+    });
+    document.body.appendChild(wrapper);
+    this.element = wrapper;
+  }
+  applyFilter() {
+    this.visible = filterRows(this.rows, this.query);
+    if (this.activeIndex >= this.visible.length) {
+      this.activeIndex = Math.max(0, this.visible.length - 1);
+    }
+    this.renderList();
+  }
+  renderList() {
+    if (!this.list) {
+      return;
+    }
+    if (!this.visible.length) {
+      this.list.innerHTML = '<div class="sad-overlay__empty">' + (this.loading ? "\u6B63\u5728\u52A0\u8F7D\u2026" : "\u6CA1\u6709\u5339\u914D\u7684\u6587\u6863") + "</div>";
+      return;
+    }
+    this.list.innerHTML = this.visible.map((row, index) => `
+    <button class="sad-overlay__row${index === this.activeIndex ? " is-active" : ""}" type="button" role="option" aria-selected="${index === this.activeIndex}" data-sad-overlay-row="${escapeHtml2(row.id)}" style="padding-left:${10 + row.depth * 14}px">
+      <span class="sad-overlay__title">${escapeHtml2(row.title)}</span>
+      <span class="sad-overlay__path">${escapeHtml2(row.hpath)}</span>
+    </button>`).join("");
+    const active = this.list.querySelector(".is-active");
+    if (active && typeof active.scrollIntoView === "function") {
+      active.scrollIntoView({ block: "nearest" });
+    }
+  }
+  move(delta) {
+    if (!this.visible.length) {
+      return;
+    }
+    const next = this.activeIndex + delta;
+    this.activeIndex = Math.max(0, Math.min(this.visible.length - 1, next));
+    this.renderList();
+  }
+  pick(id) {
+    const target = this.visible.find((row) => row.id === id) || this.rows.find((row) => row.id === id);
+    if (!target) {
+      return;
+    }
+    this.close();
+    this.plugin.openDocument(target.id);
+  }
+  onKeydown(event) {
+    if (!this.isOpen) {
+      return;
+    }
+    if (event.isComposing) {
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      this.close();
+      return;
+    }
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      event.stopPropagation();
+      this.move(event.key === "ArrowDown" ? 1 : -1);
+      return;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      event.stopPropagation();
+      const row = this.visible[this.activeIndex];
+      if (row) {
+        this.pick(row.id);
+      }
+    }
+  }
+  close() {
+    document.removeEventListener("keydown", this.onKeydownBound, true);
+    if (this.element) {
+      this.element.remove();
+    }
+    this.element = null;
+    this.input = null;
+    this.list = null;
+    this.scope = null;
+    this.visible = [];
+    this.rows = [];
+    this.context = null;
+    if (this.previousFocus && typeof this.previousFocus.focus === "function" && this.previousFocus.isConnected) {
+      this.previousFocus.focus();
+    }
+    this.previousFocus = null;
+  }
+};
+
 // src/plugin.js
 var AutoDirectoryPlugin = class extends import_siyuan5.Plugin {
   constructor(options) {
@@ -2027,8 +2290,10 @@ var AutoDirectoryPlugin = class extends import_siyuan5.Plugin {
     this.pending = /* @__PURE__ */ new Set();
     this.protyles = /* @__PURE__ */ new Set();
     this.navigationStacks = /* @__PURE__ */ new Map();
+    this.overlay = null;
     this.onProtyleEvent = this.onProtyleEvent.bind(this);
     this.onWsMain = this.onWsMain.bind(this);
+    this.onGlobalKeydown = this.onGlobalKeydown.bind(this);
   }
   async onload() {
     try {
@@ -2054,6 +2319,14 @@ var AutoDirectoryPlugin = class extends import_siyuan5.Plugin {
       position: "right",
       callback: () => this.openSetting()
     });
+    this.overlay = new DirectoryOverlay(this);
+    document.addEventListener("keydown", this.onGlobalKeydown, true);
+    this.addTopBar({
+      icon: "iconSearch",
+      title: "\u5FEB\u901F\u76EE\u5F55\uFF08Alt+Shift+D\uFF09",
+      position: "right",
+      callback: () => this.toggleQuickDirectory()
+    });
     try {
       (0, import_siyuan5.getAllEditor)().forEach((editor) => this.schedule(editor.protyle, 160));
     } catch (error) {
@@ -2061,6 +2334,11 @@ var AutoDirectoryPlugin = class extends import_siyuan5.Plugin {
     }
   }
   onunload() {
+    document.removeEventListener("keydown", this.onGlobalKeydown, true);
+    if (this.overlay) {
+      this.overlay.close();
+      this.overlay = null;
+    }
     this.eventBus.off("loaded-protyle-static", this.onProtyleEvent);
     this.eventBus.off("switch-protyle", this.onProtyleEvent);
     this.eventBus.off("ws-main", this.onWsMain);
@@ -2091,12 +2369,17 @@ var AutoDirectoryPlugin = class extends import_siyuan5.Plugin {
     if (!detail || !WS_COMMANDS.has(detail.cmd)) {
       return;
     }
+    const delay = detail.cmd === "transactions" ? 650 : 140;
     this.protyles.forEach((protyle) => {
-      if (!protyle || !protyle.element || !protyle.element.isConnected) {
+      const element = protyle && protyle.element;
+      if (!element || !element.isConnected) {
         this.disposeProtyle(protyle);
         return;
       }
-      this.schedule(protyle, 280);
+      if (typeof element.getClientRects === "function" && element.getClientRects().length === 0) {
+        return;
+      }
+      this.schedule(protyle, delay);
     });
   }
   disposeProtyle(protyle) {
@@ -2203,7 +2486,12 @@ var AutoDirectoryPlugin = class extends import_siyuan5.Plugin {
     }
   }
   async loadTree(context, protyle) {
-    const hpath = normalizePath(await getHPath(context.id));
+    let hpath = "";
+    try {
+      hpath = normalizePath(await getHPath(context.id));
+    } catch (error) {
+      console.warn("[siyuan-auto-directory] \u8BFB\u53D6\u6587\u6863\u8DEF\u5F84\u5931\u8D25\uFF0C\u53EF\u80FD\u5DF2\u5220\u9664\u6216\u79FB\u52A8", error);
+    }
     const notebookRoot = context.id === context.notebook;
     let rows = [];
     try {
@@ -2217,19 +2505,21 @@ var AutoDirectoryPlugin = class extends import_siyuan5.Plugin {
     const tree = buildTree(rows, context.id, hpath, context.path, notebookRoot);
     await this.applyFileTreeOrder(context, tree);
     applyPinnedNodes(tree, this.pins);
-    if (this.config.showReferencedDocs !== false) {
-      await this.mergeReferencedDocs(tree, protyle);
-    }
-    if (this.config.showDocumentTags !== false) {
-      await this.mergeDocumentTags(tree);
-    }
-    const legacyIds = await loadLegacyBlocks(context.id);
+    const showRefs = this.config.showReferencedDocs !== false;
+    const showTags = this.config.showDocumentTags !== false;
+    const refsTask = showRefs ? Promise.all([
+      this.mergeReferencedDocs(tree, protyle),
+      this.mergeIncomingReferences(tree)
+    ]) : Promise.resolve();
+    const tagsTask = showTags ? this.mergeDocumentTags(tree) : Promise.resolve();
+    const legacyTask = loadLegacyBlocks(context.id);
+    const [, , legacyIds] = await Promise.all([refsTask, tagsTask, legacyTask]);
     return { tree, legacyIds };
   }
   async applyFileTreeOrder(context, tree) {
     const orderMap = /* @__PURE__ */ new Map();
-    const parentKeys = collectParentKeys(tree, context.notebook);
-    for (const parentID of parentKeys) {
+    const parentKeys = Array.from(collectParentKeys(tree, context.notebook));
+    await Promise.all(parentKeys.map(async (parentID) => {
       try {
         let offset = 0;
         let total = Infinity;
@@ -2250,7 +2540,7 @@ var AutoDirectoryPlugin = class extends import_siyuan5.Plugin {
       } catch (error) {
         console.warn("[siyuan-auto-directory] \u8BFB\u53D6\u76EE\u5F55\u987A\u5E8F\u5931\u8D25", parentID, error);
       }
-    }
+    }));
     if (orderMap.size) {
       applyTreeOrder(tree, orderMap);
     }
@@ -2302,7 +2592,7 @@ var AutoDirectoryPlugin = class extends import_siyuan5.Plugin {
       console.warn("[siyuan-auto-directory] \u67E5\u8BE2 DOM \u5F15\u7528\u6587\u6863\u5931\u8D25", error);
     }
     const byId = new Map(rows.map((row) => [row.id, row]));
-    for (const id of referenced) {
+    await Promise.all(referenced.map(async (id) => {
       const row = byId.get(id);
       if (row) {
         addReference(tree, tree.id, {
@@ -2311,23 +2601,38 @@ var AutoDirectoryPlugin = class extends import_siyuan5.Plugin {
           hpath: row.hpath,
           path: row.path
         });
-        continue;
+        return;
       }
       try {
         const [info, path] = await Promise.all([
           getDocInfo(id).catch(() => ({})),
           getDocPath(id).catch(() => ({}))
         ]);
+        const title = info && (info.name || info.title) || "";
+        const targetPath = path && path.path;
+        const targetHPath = path && path.hpath;
+        if (!title && !targetPath && !targetHPath) {
+          return;
+        }
         addReference(tree, tree.id, {
           id,
-          title: info && (info.name || info.title) || "\u5F15\u7528\u6587\u6863",
-          hpath: path && path.hpath,
-          path: path && path.path
+          title: title || "\u5F15\u7528\u6587\u6863",
+          hpath: targetHPath,
+          path: targetPath
         });
       } catch (error) {
         console.warn("[siyuan-auto-directory] \u89E3\u6790\u5F15\u7528\u6587\u6863\u5931\u8D25", id, error);
       }
+    }));
+  }
+  async mergeIncomingReferences(tree) {
+    let rows = [];
+    try {
+      rows = await queryIncomingReferenceRows(Array.from(tree.index.keys()));
+    } catch (error) {
+      console.warn("[siyuan-auto-directory] \u67E5\u8BE2\u88AB\u5F15\u7528\u6765\u6E90\u5931\u8D25", error);
     }
+    applyIncomingReferences(tree, rows, tree.id);
   }
   async fallbackRows(context, hpath) {
     const data = await listDocTree(context.notebook, context.path, true).catch(() => []);
@@ -2436,6 +2741,67 @@ var AutoDirectoryPlugin = class extends import_siyuan5.Plugin {
     }
     panel.destroy();
     this.panels.delete(protyle);
+  }
+  onGlobalKeydown(event) {
+    if (!event || event.repeat || event.isComposing) {
+      return;
+    }
+    const key = text(event.key).toLowerCase();
+    if (key === "d" && event.altKey && event.shiftKey) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.toggleQuickDirectory();
+    }
+  }
+  toggleQuickDirectory() {
+    if (this.overlay && this.overlay.isOpen) {
+      this.overlay.close();
+      return;
+    }
+    this.openQuickDirectory();
+  }
+  activeProtyle() {
+    let protyles = [];
+    try {
+      protyles = (0, import_siyuan5.getAllEditor)().map((editor) => editor && editor.protyle).filter((protyle) => protyle && protyle.element && protyle.element.isConnected);
+    } catch (error) {
+      console.warn("[siyuan-auto-directory] \u83B7\u53D6\u7F16\u8F91\u5668\u5931\u8D25", error);
+    }
+    if (!protyles.length) {
+      return null;
+    }
+    const focused = protyles.find((protyle) => protyle.element.contains(document.activeElement));
+    if (focused) {
+      return focused;
+    }
+    const visible = protyles.filter((protyle) => typeof protyle.element.getClientRects !== "function" || protyle.element.getClientRects().length > 0);
+    return visible[0] || protyles[0];
+  }
+  async openQuickDirectory() {
+    const protyle = this.activeProtyle();
+    if (!protyle) {
+      (0, import_siyuan5.showMessage)("\u6CA1\u6709\u627E\u5230\u53EF\u7528\u7684\u7F16\u8F91\u5668");
+      return;
+    }
+    const panel = this.panels.get(protyle);
+    if (panel && panel.tree) {
+      this.overlay.open(panel.context, panel.tree);
+      return;
+    }
+    const context = await this.resolveContext(protyle);
+    if (!context) {
+      (0, import_siyuan5.showMessage)("\u65E0\u6CD5\u786E\u5B9A\u5F53\u524D\u6587\u6863");
+      return;
+    }
+    this.overlay.open(context, null);
+    try {
+      const loaded = await this.loadTree(context, protyle);
+      if (this.overlay && this.overlay.isOpen && this.overlay.context && this.overlay.context.id === context.id) {
+        this.overlay.setTree(loaded.tree);
+      }
+    } catch (error) {
+      console.warn("[siyuan-auto-directory] \u52A0\u8F7D\u5FEB\u901F\u76EE\u5F55\u5931\u8D25", error);
+    }
   }
   openDocument(id, options = {}) {
     const targetId = text(id);

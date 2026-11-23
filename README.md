@@ -25,14 +25,14 @@ The plugin renders in the normal DOM above `.protyle-content`. It looks like it 
 - Shows the directory whenever the current document has child documents or body references; it is no longer limited to empty documents.
 - Renders the real child-document hierarchy in SiYuan document-tree order. References are attached to the note that contains them instead of being flattened to the top level.
 - Temporarily sort the directory by name, created time, or updated time, ascending or descending, from the panel header. Sorting only changes the current view; choose "Document tree order" to restore SiYuan's order, and it resets automatically when you switch documents.
+- Quick directory: press `Alt+Shift+D` (or the search icon in the top bar) to open a floating directory, then search, pick with arrow keys, open with Enter, and close with Esc.
 - Pin a document to the top of its current level with the pin button next to the title; pinned rows stay above newly added siblings and can be unpinned.
 - Show each document's #tags: a single tag stays on the right side of the row, while multiple tags wrap below the title on the left.
 - Shows the last-updated time on each row. Created time is available in the title tooltip by default and can be shown permanently in settings.
-- Shows up to two referenced-document paths per note by default; click `+N` to expand the rest. Paths open the target document directly.
-- Nodes referenced by another directory note keep only a compact "referenced" badge.
-- Hide inline body references whose target is already shown in the directory tree, so documents created with "create and reference" are not listed twice. References outside the tree remain visible; can be disabled in settings.
+- Shows up to two referenced-document paths per note by default; click `+N` to expand the rest. Paths open the target document directly. Referenced documents also show a "referenced by" line naming their sources, including notes from other notebooks. References whose target already appears below as a child are omitted automatically.
+- Directory rows show only real document structure, with no "referenced"/"external" badges; genuine outside references appear only in the inline "references" line.
 - After opening a child document, the panel shows "Back" and a clickable breadcrumb to return to any parent or the notebook root.
-- Expand/collapse, direct child count, reference badges, and click a title to open a document.
+- Expand/collapse, direct child count, inline reference links, and click a title to open a document.
 - Drag to the top or bottom edge of a row to reorder siblings; drag to the middle to move into a target child document.
 - Uses SiYuan's `reorderDocs` for sibling sorting and `moveDocsByID` for moving. Dragging into its own subtree or an external reference is rejected.
 - Optional move confirmation. "Do not ask again" can be re-enabled in settings.
@@ -97,7 +97,6 @@ Open settings from the list icon on the right side of the top bar:
 - Show created time (when off, it remains in the title tooltip)
 - Show document tags (single tags on the right; multiple tags wrap below the title)
 - Show documents referenced in the body (when off, only real child documents are shown)
-- Hide references already in the directory tree (inline references to documents already shown as children are omitted; external references stay)
 - Confirm before moving (when off, drag-and-drop moves run immediately; you can also disable the prompt in the first move dialog)
 
 The old "only show in empty documents" option has been removed.
@@ -118,7 +117,7 @@ Newest version first.
 ### 1.2.0
 
 - Added: temporary sorting from the panel header by name, created time, or updated time, ascending or descending. Pinned documents stay on top, and choosing "Document tree order" restores SiYuan's order. The sort resets when you switch documents and never reorders the real document tree.
-- Added: hide inline references whose target is already shown in the directory tree, so "create and reference" child documents are not listed twice. External references remain visible and the option can be turned off.
+- Added: inline references whose target already appears below as a child are omitted automatically, so "create and reference" documents are not listed twice; sibling and cross-branch references stay visible.
 
 ### 1.1.0
 

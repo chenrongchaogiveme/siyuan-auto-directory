@@ -45,16 +45,9 @@ export function openSettingsDialog(config, saveConfig, reloadPanels) {
   <label class="sad-settings__toggle">
     <span class="sad-settings__toggle-text">
       <span class="sad-settings__label">显示正文引用的文档</span>
-      <span class="sad-settings__hint">关闭后只显示真实子文档；开启时引用按来源笔记行内展示，默认仅显示两条。</span>
+      <span class="sad-settings__hint">关闭后只显示真实子文档；开启时引用按来源笔记行内展示，默认仅显示两条，并显示其他笔记（可跨笔记本）对本目录文档的引用。</span>
     </span>
     <input id="sad-show-references" type="checkbox" class="b3-switch" ${config.showReferencedDocs !== false ? "checked" : ""}>
-  </label>
-  <label class="sad-settings__toggle">
-    <span class="sad-settings__toggle-text">
-      <span class="sad-settings__label">隐藏目录内引用</span>
-      <span class="sad-settings__hint">开启后，正文引用中指向当前目录已有文档的条目不再行内重复显示；指向目录外文档的引用仍保留。</span>
-    </span>
-    <input id="sad-hide-indexed-references" type="checkbox" class="b3-switch" ${config.hideIndexedReferences !== false ? "checked" : ""}>
   </label>
   <label class="sad-settings__toggle">
     <span class="sad-settings__toggle-text">
@@ -133,7 +126,6 @@ export function openSettingsDialog(config, saveConfig, reloadPanels) {
         const updatedTime = dialog.element.querySelector("#sad-show-updated-time");
         const createdTime = dialog.element.querySelector("#sad-show-created-time");
         const references = dialog.element.querySelector("#sad-show-references");
-        const hideIndexedReferences = dialog.element.querySelector("#sad-hide-indexed-references");
         const tags = dialog.element.querySelector("#sad-show-tags");
         const moveConfirm = dialog.element.querySelector("#sad-confirm-move");
         const next = normalizeConfig({
@@ -144,7 +136,6 @@ export function openSettingsDialog(config, saveConfig, reloadPanels) {
             showUpdatedTime: updatedTime ? updatedTime.checked : config.showUpdatedTime,
             showCreatedTime: createdTime ? createdTime.checked : config.showCreatedTime,
             showReferencedDocs: references ? references.checked : config.showReferencedDocs,
-            hideIndexedReferences: hideIndexedReferences ? hideIndexedReferences.checked : config.hideIndexedReferences,
             showDocumentTags: tags ? tags.checked : config.showDocumentTags,
             confirmMove: moveConfirm ? moveConfirm.checked : config.confirmMove,
         });

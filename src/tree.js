@@ -218,6 +218,34 @@ export function markReferenced(tree, ids, source = null) {
     });
 }
 
+export function applyIncomingReferences(tree, rows, skipSourceId = "") {
+    const skip = text(skipSourceId);
+    (rows || []).forEach((row) => {
+        const targetId = text(row && row.target_id);
+        const sourceId = text(row && row.source_id);
+        if (!targetId || !sourceId || sourceId === targetId || sourceId === skip) {
+            return;
+        }
+        const node = tree.index.get(targetId);
+        if (!node) {
+            return;
+        }
+        const sources = Array.isArray(node.referenceSources) ? node.referenceSources : [];
+        if (sources.some((item) => item.id === sourceId)) {
+            node.referenceSources = sources;
+            return;
+        }
+        sources.push({
+            id: sourceId,
+            title: text(row.source_title || row.content || "引用文档"),
+            hpath: normalizePath(row.source_hpath || ""),
+            path: text(row.source_path || ""),
+            external: !tree.index.has(sourceId),
+        });
+        node.referenceSources = sources;
+        node.referenced = true;
+    });
+}
 export function addReference(tree, sourceId, info) {
     const sourceNode = findNode(tree, sourceId);
     const targetId = text(info && (info.id || info.targetId));
@@ -232,6 +260,7 @@ export function addReference(tree, sourceId, info) {
         path: text((info && info.path) || (targetNode && targetNode.path) || ""),
         count: Math.max(1, Number(info && info.count) || 1),
         external: !targetNode,
+        descendant: Boolean(targetNode) && isNodeUnder(tree, sourceId, targetId),
     };
     const existing = sourceNode.references.find((item) => item.id === targetId);
     if (existing) {
@@ -240,6 +269,7 @@ export function addReference(tree, sourceId, info) {
         existing.hpath = entry.hpath || existing.hpath;
         existing.path = entry.path || existing.path;
         existing.external = entry.external;
+        existing.descendant = entry.descendant;
     } else {
         sourceNode.references.push(entry);
     }
@@ -248,7 +278,7 @@ export function addReference(tree, sourceId, info) {
         const rightKey = right.external ? "~" + right.title : (right.hpath || right.title);
         return leftKey.localeCompare(rightKey, "zh", {numeric: true, sensitivity: "base"});
     });
-    if (targetNode) {
+    if (targetNode && sourceNode.id !== tree.id) {
         markReferenced(tree, [targetId], {
             id: sourceNode.id,
             title: sourceNode.title,
@@ -439,7 +469,6 @@ export function signature(tree, context, config) {
         config.autoExpand,
         config.showChildCount,
         config.showReferencedDocs,
-        config.hideIndexedReferences,
         config.showDocumentTags,
         config.showCreatedTime,
         config.showUpdatedTime,

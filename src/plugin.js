@@ -6,6 +6,7 @@ import {
     listDocTree,
     listDocTreeRange,
     queryDocRows,
+    queryIncomingReferenceRows,
     queryReferenceRows,
     queryTagRows,
     queryTreeRows,
@@ -21,8 +22,10 @@ import {
 import { loadLegacyBlocks } from "./legacy.js";
 import { appendNavigationOrigin } from "./navigation.js";
 import { DirectoryPanel } from "./panel.js";
+import { DirectoryOverlay } from "./overlay.js";
 import {
     addReference,
+    applyIncomingReferences,
     applyDocumentTags,
     applyPinnedNodes,
     applyTreeOrder,
@@ -44,8 +47,10 @@ export class AutoDirectoryPlugin extends Plugin {
         this.pending = new Set();
         this.protyles = new Set();
         this.navigationStacks = new Map();
+        this.overlay = null;
         this.onProtyleEvent = this.onProtyleEvent.bind(this);
         this.onWsMain = this.onWsMain.bind(this);
+        this.onGlobalKeydown = this.onGlobalKeydown.bind(this);
     }
 
     async onload() {
@@ -78,6 +83,15 @@ export class AutoDirectoryPlugin extends Plugin {
             callback: () => this.openSetting(),
         });
 
+        this.overlay = new DirectoryOverlay(this);
+        document.addEventListener("keydown", this.onGlobalKeydown, true);
+        this.addTopBar({
+            icon: "iconSearch",
+            title: "快速目录（Alt+Shift+D）",
+            position: "right",
+            callback: () => this.toggleQuickDirectory(),
+        });
+
         try {
             getAllEditor().forEach((editor) => this.schedule(editor.protyle, 160));
         } catch (error) {
@@ -86,6 +100,11 @@ export class AutoDirectoryPlugin extends Plugin {
     }
 
     onunload() {
+        document.removeEventListener("keydown", this.onGlobalKeydown, true);
+        if (this.overlay) {
+            this.overlay.close();
+            this.overlay = null;
+        }
         this.eventBus.off("loaded-protyle-static", this.onProtyleEvent);
         this.eventBus.off("switch-protyle", this.onProtyleEvent);
         this.eventBus.off("ws-main", this.onWsMain);
@@ -119,12 +138,17 @@ export class AutoDirectoryPlugin extends Plugin {
         if (!detail || !WS_COMMANDS.has(detail.cmd)) {
             return;
         }
+        const delay = detail.cmd === "transactions" ? 650 : 140;
         this.protyles.forEach((protyle) => {
-            if (!protyle || !protyle.element || !protyle.element.isConnected) {
+            const element = protyle && protyle.element;
+            if (!element || !element.isConnected) {
                 this.disposeProtyle(protyle);
                 return;
             }
-            this.schedule(protyle, 280);
+            if (typeof element.getClientRects === "function" && element.getClientRects().length === 0) {
+                return;
+            }
+            this.schedule(protyle, delay);
         });
     }
 
@@ -236,7 +260,12 @@ export class AutoDirectoryPlugin extends Plugin {
     }
 
     async loadTree(context, protyle) {
-        const hpath = normalizePath(await getHPath(context.id));
+        let hpath = "";
+        try {
+            hpath = normalizePath(await getHPath(context.id));
+        } catch (error) {
+            console.warn("[siyuan-auto-directory] 读取文档路径失败，可能已删除或移动", error);
+        }
         const notebookRoot = context.id === context.notebook;
         let rows = [];
         try {
@@ -250,20 +279,24 @@ export class AutoDirectoryPlugin extends Plugin {
         const tree = buildTree(rows, context.id, hpath, context.path, notebookRoot);
         await this.applyFileTreeOrder(context, tree);
         applyPinnedNodes(tree, this.pins);
-        if (this.config.showReferencedDocs !== false) {
-            await this.mergeReferencedDocs(tree, protyle);
-        }
-        if (this.config.showDocumentTags !== false) {
-            await this.mergeDocumentTags(tree);
-        }
-        const legacyIds = await loadLegacyBlocks(context.id);
+        const showRefs = this.config.showReferencedDocs !== false;
+        const showTags = this.config.showDocumentTags !== false;
+        const refsTask = showRefs
+            ? Promise.all([
+                this.mergeReferencedDocs(tree, protyle),
+                this.mergeIncomingReferences(tree),
+            ])
+            : Promise.resolve();
+        const tagsTask = showTags ? this.mergeDocumentTags(tree) : Promise.resolve();
+        const legacyTask = loadLegacyBlocks(context.id);
+        const [, , legacyIds] = await Promise.all([refsTask, tagsTask, legacyTask]);
         return {tree, legacyIds};
     }
 
     async applyFileTreeOrder(context, tree) {
         const orderMap = new Map();
-        const parentKeys = collectParentKeys(tree, context.notebook);
-        for (const parentID of parentKeys) {
+        const parentKeys = Array.from(collectParentKeys(tree, context.notebook));
+        await Promise.all(parentKeys.map(async (parentID) => {
             try {
                 let offset = 0;
                 let total = Infinity;
@@ -286,7 +319,7 @@ export class AutoDirectoryPlugin extends Plugin {
             } catch (error) {
                 console.warn("[siyuan-auto-directory] 读取目录顺序失败", parentID, error);
             }
-        }
+        }));
         if (orderMap.size) {
             applyTreeOrder(tree, orderMap);
         }
@@ -342,7 +375,7 @@ export class AutoDirectoryPlugin extends Plugin {
             console.warn("[siyuan-auto-directory] 查询 DOM 引用文档失败", error);
         }
         const byId = new Map(rows.map((row) => [row.id, row]));
-        for (const id of referenced) {
+        await Promise.all(referenced.map(async (id) => {
             const row = byId.get(id);
             if (row) {
                 addReference(tree, tree.id, {
@@ -351,25 +384,40 @@ export class AutoDirectoryPlugin extends Plugin {
                     hpath: row.hpath,
                     path: row.path,
                 });
-                continue;
+                return;
             }
             try {
                 const [info, path] = await Promise.all([
                     getDocInfo(id).catch(() => ({})),
                     getDocPath(id).catch(() => ({})),
                 ]);
+                const title = (info && (info.name || info.title)) || "";
+                const targetPath = path && path.path;
+                const targetHPath = path && path.hpath;
+                if (!title && !targetPath && !targetHPath) {
+                    return;
+                }
                 addReference(tree, tree.id, {
                     id,
-                    title: (info && (info.name || info.title)) || "引用文档",
-                    hpath: path && path.hpath,
-                    path: path && path.path,
+                    title: title || "引用文档",
+                    hpath: targetHPath,
+                    path: targetPath,
                 });
             } catch (error) {
                 console.warn("[siyuan-auto-directory] 解析引用文档失败", id, error);
             }
-        }
+        }));
     }
 
+    async mergeIncomingReferences(tree) {
+        let rows = [];
+        try {
+            rows = await queryIncomingReferenceRows(Array.from(tree.index.keys()));
+        } catch (error) {
+            console.warn("[siyuan-auto-directory] 查询被引用来源失败", error);
+        }
+        applyIncomingReferences(tree, rows, tree.id);
+    }
     async fallbackRows(context, hpath) {
         const data = await listDocTree(context.notebook, context.path, true).catch(() => []);
         const ids = [];
@@ -483,6 +531,74 @@ export class AutoDirectoryPlugin extends Plugin {
         this.panels.delete(protyle);
     }
 
+    onGlobalKeydown(event) {
+        if (!event || event.repeat || event.isComposing) {
+            return;
+        }
+        const key = text(event.key).toLowerCase();
+        if (key === "d" && event.altKey && event.shiftKey) {
+            event.preventDefault();
+            event.stopPropagation();
+            this.toggleQuickDirectory();
+        }
+    }
+
+    toggleQuickDirectory() {
+        if (this.overlay && this.overlay.isOpen) {
+            this.overlay.close();
+            return;
+        }
+        this.openQuickDirectory();
+    }
+
+    activeProtyle() {
+        let protyles = [];
+        try {
+            protyles = getAllEditor()
+                .map((editor) => editor && editor.protyle)
+                .filter((protyle) => protyle && protyle.element && protyle.element.isConnected);
+        } catch (error) {
+            console.warn("[siyuan-auto-directory] 获取编辑器失败", error);
+        }
+        if (!protyles.length) {
+            return null;
+        }
+        const focused = protyles.find((protyle) => protyle.element.contains(document.activeElement));
+        if (focused) {
+            return focused;
+        }
+        const visible = protyles.filter((protyle) => (
+            typeof protyle.element.getClientRects !== "function" || protyle.element.getClientRects().length > 0
+        ));
+        return visible[0] || protyles[0];
+    }
+
+    async openQuickDirectory() {
+        const protyle = this.activeProtyle();
+        if (!protyle) {
+            showMessage("没有找到可用的编辑器");
+            return;
+        }
+        const panel = this.panels.get(protyle);
+        if (panel && panel.tree) {
+            this.overlay.open(panel.context, panel.tree);
+            return;
+        }
+        const context = await this.resolveContext(protyle);
+        if (!context) {
+            showMessage("无法确定当前文档");
+            return;
+        }
+        this.overlay.open(context, null);
+        try {
+            const loaded = await this.loadTree(context, protyle);
+            if (this.overlay && this.overlay.isOpen && this.overlay.context && this.overlay.context.id === context.id) {
+                this.overlay.setTree(loaded.tree);
+            }
+        } catch (error) {
+            console.warn("[siyuan-auto-directory] 加载快速目录失败", error);
+        }
+    }
     openDocument(id, options = {}) {
         const targetId = text(id);
         if (!targetId) {
